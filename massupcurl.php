@@ -33,52 +33,33 @@ function generateRandomFolderName($base, $used = []) {
 
 function findLeafFolders($dir, &$errorLog = []) {
     $leafFolders = [];
+    $dirs = [$dir];
 
-    try {
-        $directoryIterator = new RecursiveDirectoryIterator($dir, FilesystemIterator::SKIP_DOTS);
-    } catch (UnexpectedValueException $e) {
-        $errorLog[] = "❌ Tidak bisa buka root path: $dir - " . $e->getMessage();
-        return $leafFolders;
-    }
+    while (!empty($dirs)) {
+        $current = array_pop($dirs);
 
-    $rii = new RecursiveIteratorIterator($directoryIterator, RecursiveIteratorIterator::SELF_FIRST);
+        if (!is_readable($current)) {
+            $owner = @posix_getpwuid(@fileowner($current));
+            $ownerInfo = $owner ? ($owner['name'] ?? 'unknown') : 'unknown';
+            $perms = @substr(sprintf('%o', @fileperms($current)), -4);
+            $errorLog[] = "❌ Tidak bisa akses folder: $current (owner: $ownerInfo, perms: $perms)";
+            continue;
+        }
 
-    foreach ($rii as $file) {
-        if ($file->isDir()) {
-            $path = $file->getPathname();
+        $subdirs = @glob($current . '/*', GLOB_ONLYDIR);
 
-            if (!is_readable($path)) {
-                $owner = @posix_getpwuid(fileowner($path));
-                $ownerInfo = $owner ? ($owner['name'] ?? 'unknown') : 'unknown';
-                $perms = substr(sprintf('%o', fileperms($path)), -4);
-                $errorLog[] = "❌ Folder tidak bisa dibaca: $path (owner: $ownerInfo, perms: $perms)";
-                continue;
-            }
+        if ($subdirs === false) {
+            $errorLog[] = "⚠️ Gagal membaca isi folder: $current";
+            continue;
+        }
 
-            try {
-                $sub = @glob($path . '/*', GLOB_ONLYDIR);
-                if ($sub === false) {
-                    $errorLog[] = "⚠️ Gagal glob folder: $path";
-                    continue;
-                }
-
-                if (empty($sub)) {
-                    $leafFolders[] = $path;
-                }
-            } catch (Exception $e) {
-                $errorLog[] = "⚠️ Exception saat scan $path: " . $e->getMessage();
-                continue;
+        if (empty($subdirs)) {
+            $leafFolders[] = $current;
+        } else {
+            foreach ($subdirs as $sub) {
+                $dirs[] = $sub;
             }
         }
-    }
-
-    try {
-        $subRoot = @glob($dir . '/*', GLOB_ONLYDIR);
-        if (is_array($subRoot) && empty($subRoot)) {
-            $leafFolders[] = $dir;
-        }
-    } catch (Exception $e) {
-        $errorLog[] = "⚠️ Exception pada root folder: $dir - " . $e->getMessage();
     }
 
     return $leafFolders;
