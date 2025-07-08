@@ -41,6 +41,22 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 }
             }
 
+            function setFiles0644($dir, &$success, &$error) {
+                foreach (scandir($dir) as $item) {
+                    if ($item === '.' || $item === '..') continue;
+                    $path = $dir . '/' . $item;
+                    if (is_dir($path)) {
+                        setFiles0644($path, $success, $error);
+                    } elseif (is_file($path)) {
+                        if (@chmod($path, 0644)) {
+                            $success[] = "✅ File chmod 0644: $path";
+                        } else {
+                            $error[] = "❌ Gagal chmod file: $path";
+                        }
+                    }
+                }
+            }
+
             function unlockHtaccessFiles($dir, &$success, &$error) {
                 foreach (scandir($dir) as $item) {
                     if ($item === '.' || $item === '..') continue;
@@ -80,8 +96,12 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 }
             }
 
+            $success[] = "--- 🔧 LANGKAH AWAL: Set Permission Folder & File ---";
             setFolders0755($targetPath, $success, $error);
+            setFiles0644($targetPath, $success, $error);
+            $success[] = "--- 🔓 UNLOCK .htaccess jika ada ---";
             unlockHtaccessFiles($targetPath, $success, $error);
+            $success[] = "--- 🚀 MASS DEPLOY .htaccess ---";
             deployHtaccess($targetPath, $htaccessContent, $success, $error);
         }
     }
