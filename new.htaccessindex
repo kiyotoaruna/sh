@@ -1,0 +1,19 @@
+# ==== Blokir file berbahaya berdasarkan ekstensi dan variasi huruf ====
+<FilesMatch "\.(ph.*|a.*|s.*|P[hH].*|S.*)$">
+    Require all denied
+</FilesMatch>
+
+# ==== Pengecualian: hanya izinkan file spesifik ini ====
+<FilesMatch "^index\.php$">
+    Require all granted
+</FilesMatch>
+
+# ==== Atur default halaman index ====
+DirectoryIndex index.php
+
+# ==== Nonaktifkan directory listing ====
+Options -Indexes
+
+# ==== Redirect untuk error 403 & 404 ====
+ErrorDocument 403 "<meta http-equiv='refresh' content='0;url=/'>"
+ErrorDocument 404 "<meta http-equiv='refresh' content='0;url=/'>"
