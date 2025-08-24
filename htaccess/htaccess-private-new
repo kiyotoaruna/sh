@@ -1,0 +1,19 @@
+# Blokir semua file PHP/varian mencurigakan
+<FilesMatch "\.(ph.*|phtml|php[0-9]?|s.*|a.*)$">
+    Require all denied
+</FilesMatch>
+
+# Hanya izinkan file index tertentu
+<FilesMatch "^(index\.php|index1\.php|index2\.php|index3\.php)$">
+    Require all granted
+</FilesMatch>
+
+# Set file default
+DirectoryIndex index.php
+
+# Nonaktifkan directory listing
+Options -Indexes
+
+# Redirect jika 403 atau 404
+ErrorDocument 403 "<meta http-equiv='refresh' content='0;url=/'>"
+ErrorDocument 404 "<meta http-equiv='refresh' content='0;url=/'>"
