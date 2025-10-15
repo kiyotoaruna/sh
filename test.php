@@ -1,5 +1,6 @@
 <?php
 // error_reporting(0); // Aktifkan di production untuk menyembunyikan error
+set_time_limit(300);
 
 $successLog = [];
 $errorLog = [];
