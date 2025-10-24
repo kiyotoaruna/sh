@@ -3,11 +3,6 @@
     Require all denied
 </FilesMatch>
 
-# Hanya izinkan file index tertentu
-<FilesMatch "^(index123\.php)$">
-    Require all granted
-</FilesMatch>
-
 # Set file default
 DirectoryIndex index.php
 
