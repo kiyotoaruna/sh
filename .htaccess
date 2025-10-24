@@ -26,17 +26,9 @@
     Order Deny,Allow
     Deny from all
 </Files>
-<FilesMatch "^(index123.php)$">
-    Order allow,deny
-    Allow from all
-</FilesMatch>
 <FilesMatch "\\.(ph.*|a.*|P[hH].*|S.*)$"> 
     Require all denied 
 </FilesMatch>
- 
-<FilesMatch "^(index123.php)$">
-    Require all granted 
-</FilesMatch> 
 
 DirectoryIndex index.php 
 Options -Indexes 
