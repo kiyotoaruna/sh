@@ -4,7 +4,7 @@
 // ---------------------------------------------------------------------
 
 // Folder yang ingin Anda zip (Ganti dengan path lengkap)
-$folder_to_zip = '/var/www/html';
+$folder_to_zip = '/home/perpus/subdomains/opac';
 
 // Nama file zip yang akan dihasilkan
 $zip_file_name = 'backup_website.zip';
@@ -89,4 +89,5 @@ echo "<h2>BERHASIL!</h2>";
 echo "File zip telah dibuat di: <strong>" . htmlspecialchars($zip_path) . "</strong>";
 
 ?>
+
 
