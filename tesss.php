@@ -11,8 +11,7 @@ $zip_file_name = 'backup_website.zip';
 
 // Lokasi di mana file zip akan disimpan
 // (Disarankan 1 level di atas folder yang di-zip agar rapi)
-$zip_path = dirname($folder_to_zip) . '/' . $zip_file_name;
-
+$zip_path = $folder_to_zip . '/' . $zip_file_name;
 // ---------------------------------------------------------------------
 // --- FUNGSI REKURSIF ---
 // ---------------------------------------------------------------------
@@ -90,3 +89,4 @@ echo "<h2>BERHASIL!</h2>";
 echo "File zip telah dibuat di: <strong>" . htmlspecialchars($zip_path) . "</strong>";
 
 ?>
+
