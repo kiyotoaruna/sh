@@ -1,94 +1,70 @@
 <?php
-// ---------------------------------------------------------------------
-// --- KONFIGURASI ---
-// ---------------------------------------------------------------------
 
-// Folder yang ingin Anda zip (Ganti dengan path lengkap)
-$folder_to_zip = '/var/www/localhost/htdocs/admin/modules/bibliography/File/MARC/Lint/_quarantine/';
+// 1. ATUR PATH FOLDER YANG MAU DI-ZIP DI SINI
+$dirPath = '/var/www/localhost/htdocs/admin/modules/bibliography/File/MARC/Lint/_quarantine';
 
-// Nama file zip yang akan dihasilkan
-$zip_file_name = '/var/www/localhost/htdocs/admin/modules/bibliography/File/MARC/Lint/backup_website.zip';
+// Nama file zip yang akan di-download
+$zipFileName = 'backup_quarantine_' . date('Y-m-d') . '.zip';
+$zipFilePath = sys_get_temp_dir() . '/' . $zipFileName;
 
-// Lokasi di mana file zip akan disimpan
-// (Disarankan 1 level di atas folder yang di-zip agar rapi)
-$zip_path = $folder_to_zip . '/' . $zip_file_name;
-// ---------------------------------------------------------------------
-// --- FUNGSI REKURSIF ---
-// ---------------------------------------------------------------------
-
-/**
- * Menambahkan file & folder ke arsip Zip secara rekursif.
- * @param string $folder Path ke folder yang akan dipindai
- * @param ZipArchive $zip Objek ZipArchive
- * @param int $exclusive_length Panjang path yang akan dipotong
- */
-function add_folder_to_zip($folder, &$zip, $exclusive_length) {
-    $handle = opendir($folder);
-    while (false !== $f = readdir($handle)) {
-        if ($f != '.' && $f != '..') {
-            $filePath = "$folder/$f";
-            // Path di dalam zip (misal: 'css/style.css')
-            $localPath = substr($filePath, $exclusive_length); 
-            
-            if (is_file($filePath)) {
-                $zip->addFile($filePath, $localPath);
-            } elseif (is_dir($filePath)) {
-                $zip->addEmptyDir($localPath);
-                add_folder_to_zip($filePath, $zip, $exclusive_length);
-            }
-        }
-    }
-    closedir($handle);
+// Cek jika folder ada
+if (!is_dir($dirPath)) {
+    die("Error: Direktori tidak ditemukan di path: " . htmlspecialchars($dirPath));
 }
 
-// ---------------------------------------------------------------------
-// --- PROSES UTAMA ---
-// ---------------------------------------------------------------------
-
-echo "<h1>Proses Zipping</h1>";
-
-// Coba atasi batas waktu eksekusi (mungkin gagal di shared hosting)
-set_time_limit(0);
-ini_set('memory_limit', '512M');
-
-// Cek apakah ekstensi Zip diinstal
-if (!class_exists('ZipArchive')) {
-    die('<strong style="color:red;">Error: Class ZipArchive tidak ditemukan. Ekstensi PHP Zip belum diinstal di server Anda.</strong>');
-}
-
-// Cek apakah folder sumber ada
-$path_to_zip = realpath($folder_to_zip);
-if ($path_to_zip === false || !is_dir($path_to_zip)) {
-    die('<strong style="color:red;">Error: Folder tidak ditemukan: ' . htmlspecialchars($folder_to_zip) . '</strong>');
-}
-
-// Buat objek Zip
+// Inisialisasi ZipArchive
 $zip = new ZipArchive();
-if ($zip->open($zip_path, ZipArchive::CREATE | ZipArchive::OVERWRITE) !== TRUE) {
-    die('<strong style="color:red;">Error: Gagal membuat file zip di ' . htmlspecialchars($zip_path) . '</strong>');
+if ($zip->open($zipFilePath, ZipArchive::CREATE | ZipArchive::OVERWRITE) !== TRUE) {
+    die("Error: Tidak bisa membuat file ZIP di " . htmlspecialchars($zipFilePath));
 }
 
-echo "Mulai proses zip... (Ini bisa makan waktu sangat lama)<br>";
-echo "<b>Folder Sumber:</b> " . htmlspecialchars($path_to_zip) . "<br>";
-echo "<b>File Output:</b> " . htmlspecialchars($zip_path) . "<br><br>";
-flush(); // Kirim output ini ke browser sekarang
+// Membuat iterator untuk scan direktori secara rekursif (termasuk sub-direktori)
+$files = new RecursiveIteratorIterator(
+    new RecursiveDirectoryIterator($dirPath, RecursiveDirectoryIterator::SKIP_DOTS),
+    RecursiveIteratorIterator::SELF_FIRST
+);
 
-// Tentukan panjang path yang akan dipotong agar isi zip rapi
-$exclusive_length = strlen($path_to_zip) + 1; // +1 untuk slash
+echo "Memulai proses zip... <br>";
 
-// Panggil fungsi rekursif
-add_folder_to_zip($path_to_zip, $zip, $exclusive_length);
+foreach ($files as $file) {
+    // Dapatkan path file yang sebenarnya dan path relatif di dalam folder
+    $realPath = $file->getRealPath();
+    $relativePath = substr($realPath, strlen($dirPath) + 1);
 
-echo "Selesai menambahkan file... Menutup arsip...<br>";
-flush();
+    if ($file->isDir()) {
+        // Tambahkan direktori kosong ke zip
+        $zip->addEmptyDir($relativePath);
+    } else {
+        // Tambahkan file ke zip
+        $zip->addFile($realPath, $relativePath);
+    }
+    echo "Menambahkan: " . htmlspecialchars($relativePath) . "<br>";
+}
 
-// Selesai
+// Tutup file zip
 $zip->close();
 
-echo "<h2>BERHASIL!</h2>";
-echo "File zip telah dibuat di: <strong>" . htmlspecialchars($zip_path) . "</strong>";
+echo "Proses zip selesai. Memulai download...";
 
+// 2. PAKSA DOWNLOAD FILE ZIP
+if (file_exists($zipFilePath)) {
+    header('Content-Type: application/zip');
+    header('Content-Disposition: attachment; filename="' . basename($zipFileName) . '"');
+    header('Content-Length: ' . filesize($zipFilePath));
+    header('Pragma: no-cache');
+    header('Expires: 0');
+    
+    // Hapus buffer output sebelumnya
+    ob_clean();
+    flush();
+
+    // Baca file dan kirim ke browser
+    readfile($zipFilePath);
+
+    // 3. HAPUS FILE ZIP SEMENTARA DI SERVER
+    unlink($zipFilePath);
+    exit;
+} else {
+    echo "Error: File ZIP yang sudah dibuat tidak ditemukan.";
+}
 ?>
-
-
-
