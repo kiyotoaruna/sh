@@ -1,0 +1,138 @@
+<?php
+
+$successCount = 0;
+$errorLog = [];
+$showResults = false;
+
+// Fungsi rekursif untuk mencari dan mengatur CHMOD file .htaccess
+function recursiveChmodHtaccess($currentDir, $targetChmod, &$successCount, &$errorLog) {
+    // Pastikan direktori dapat dibaca
+    if (!is_readable($currentDir)) {
+        $errorLog[] = "❌ Permission denied to read directory: <code>" . htmlspecialchars($currentDir) . "</code>";
+        return;
+    }
+
+    $items = @scandir($currentDir);
+
+    if ($items === false) {
+        $errorLog[] = "❌ Failed to scan directory: <code>" . htmlspecialchars($currentDir) . "</code>";
+        return;
+    }
+
+    foreach ($items as $item) {
+        if ($item === '.' || $item === '..') continue;
+
+        $path = $currentDir . '/' . $item;
+
+        if (is_dir($path)) {
+            // Jika item adalah direktori, masuk secara rekursif
+            recursiveChmodHtaccess($path, $targetChmod, $successCount, $errorLog);
+        } elseif (is_file($path) && $item === '.htaccess') {
+            // Jika item adalah file dan namanya .htaccess
+            if (@chmod($path, $targetChmod)) {
+                $successCount++;
+                // Log hasil untuk ditampilkan
+                $errorLog[] = "✅ CHMOD Success: <code>" . htmlspecialchars($path) . "</code>"; 
+            } else {
+                $errorLog[] = "⚠️ CHMOD Failed: <code>" . htmlspecialchars($path) . "</code> (Check owner/permissions)";
+            }
+        }
+    }
+}
+
+// Fungsi sanitasi sederhana
+function sanitizePath($path) {
+    return rtrim(str_replace(['../', '..\\'], '', $path), '/\\');
+}
+
+if ($_SERVER['REQUEST_METHOD'] === 'POST') {
+    $targetPathRaw = trim($_POST['target_path'] ?? '');
+    $chmodRaw = trim($_POST['target_chmod'] ?? '');
+
+    $targetPath = sanitizePath($targetPathRaw);
+
+    // Validasi CHMOD
+    if (!preg_match('/^[0-7]{3,4}$/', $chmodRaw)) {
+        $errorLog[] = "❌ Invalid CHMOD format. Use 3 or 4 digits Octal (e.g., 644, 0755).";
+    } elseif (empty($targetPath)) {
+        $errorLog[] = "❌ Target directory path is required.";
+    } elseif (!is_dir($targetPath)) {
+        $errorLog[] = "❌ Target directory not found: <code>" . htmlspecialchars($targetPath) . "</code>";
+    } else {
+        // Jika validasi lulus, konversi ke oktal dan mulai proses
+        $targetChmod = octdec($chmodRaw);
+        
+        // Menambahkan slash di akhir path jika belum ada untuk memastikan path rekursif benar
+        $pathForRecursion = rtrim($targetPath, '/') . '/';
+        
+        // Jalankan fungsi utama
+        recursiveChmodHtaccess($pathForRecursion, $targetChmod, $successCount, $errorLog);
+
+        $showResults = true;
+    }
+}
+?>
+
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Recursive CHMOD Tool</title>
+    <style>
+        body { font-family: Arial, sans-serif; background-color: #f4f4f4; color: #333; margin: 0; padding: 20px; }
+        .container { max-width: 800px; margin: 0 auto; background: #fff; padding: 20px; border-radius: 8px; box-shadow: 0 0 10px rgba(0, 0, 0, 0.1); }
+        h1 { color: #555; border-bottom: 2px solid #ddd; padding-bottom: 10px; }
+        .form-group { margin-bottom: 15px; }
+        .form-group label { display: block; font-weight: bold; margin-bottom: 5px; }
+        .form-group input[type="text"] { width: 100%; padding: 10px; border: 1px solid #ccc; border-radius: 4px; box-sizing: border-box; }
+        .btn-start { background-color: #007bff; color: white; padding: 10px 15px; border: none; border-radius: 4px; cursor: pointer; font-size: 16px; margin-top: 10px; }
+        .btn-start:hover { background-color: #0056b3; }
+        .log-box { margin-top: 20px; padding: 15px; border-radius: 4px; max-height: 400px; overflow-y: auto; font-family: monospace; }
+        .success { background-color: #e6ffe6; border: 1px solid #00cc00; color: #008000; }
+        .error { background-color: #ffe6e6; border: 1px solid #ff0000; color: #cc0000; }
+        code { background: #eee; padding: 2px 4px; border-radius: 3px; }
+        .log-entry.success { color: #008000; }
+        .log-entry.error, .log-entry.warning { color: #cc0000; }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>🛠️ Recursive CHMOD Tool</h1>
+        
+        <form method="POST">
+            <div class="form-group">
+                <label for="target_path">🎯 Target Directory Path:</label>
+                <input type="text" id="target_path" name="target_path" required 
+                       placeholder="/home/stam5531/public_html/alumni"
+                       value="<?= htmlspecialchars($_POST['target_path'] ?? '') ?>">
+            </div>
+            
+            <div class="form-group">
+                <label for="target_chmod">🔐 Target CHMOD (e.g., 0644, 777):</label>
+                <input type="text" id="target_chmod" name="target_chmod" required 
+                       pattern="[0-7]{3,4}" maxlength="4"
+                       placeholder="0644"
+                       value="<?= htmlspecialchars($_POST['target_chmod'] ?? '0644') ?>">
+            </div>
+            
+            <button type="submit" class="btn-start">🚀 Start Recursive CHMOD</button>
+        </form>
+
+        <?php if ($showResults): ?>
+        <hr>
+        <h2>📊 Execution Results</h2>
+        
+        <div class="log-box <?= !empty($errorLog) && strpos(implode('', $errorLog), '❌') !== false ? 'error' : 'success' ?>">
+            <p><strong>Total Files Processed:</strong> <?= $successCount ?></p>
+            
+            <?php foreach ($errorLog as $log): 
+                $class = strpos($log, '✅') !== false ? 'success' : (strpos($log, '❌') !== false || strpos($log, '⚠️') !== false ? 'error' : 'warning');
+            ?>
+                <div class="log-entry <?= $class ?>"><?= $log ?></div>
+            <?php endforeach; ?>
+        </div>
+        <?php endif; ?>
+    </div>
+</body>
+</html>
